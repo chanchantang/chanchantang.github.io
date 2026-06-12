@@ -148,7 +148,7 @@ let   hoveredStar  = null;
 // ─── GitHub stats ─────────────────────────────────────────────────────────
 const ghStats = document.createElement('div');
 ghStats.id = 'github-stats';
-ghStats.innerHTML = `<a href="https://github.com/alexchen" target="_blank" rel="noopener">
+ghStats.innerHTML = `<a href="https://github.com/chanchantang" target="_blank" rel="noopener">
   <div class="gh-stat"><span class="gh-stat-val" id="gh-repos">—</span><span class="gh-stat-lbl">Repos</span></div>
   <div class="gh-divider"></div>
   <div class="gh-stat"><span class="gh-stat-val" id="gh-stars">—</span><span class="gh-stat-lbl">Stars</span></div>
@@ -157,7 +157,7 @@ ghStats.innerHTML = `<a href="https://github.com/alexchen" target="_blank" rel="
 </a>`;
 document.body.appendChild(ghStats);
 
-fetch('https://api.github.com/users/alexchen')
+fetch('https://api.github.com/users/chanchantang')
   .then(r => r.json())
   .then(d => {
     if (d.public_repos !== undefined) {
@@ -174,13 +174,29 @@ fetch('https://api.github.com/users/alexchen')
   });
 
 // ─── Mobile gyroscope ─────────────────────────────────────────────────────
-window.addEventListener('deviceorientation', e => {
-  if (e.gamma === null) return;
-  const nx = Math.max(-1, Math.min(1, (e.gamma || 0) / 30));
-  const ny = Math.max(-1, Math.min(1, ((e.beta  || 0) - 30) / 40));
-  targetMouseX = window.innerWidth  / 2 * (1 + nx);
-  targetMouseY = window.innerHeight / 2 * (1 + ny * 0.5);
-}, { passive: true });
+function attachGyro() {
+  window.addEventListener('deviceorientation', e => {
+    if (!isMobile || e.gamma === null) return;
+    const nx = Math.max(-1, Math.min(1, (e.gamma || 0) / 30));
+    const ny = Math.max(-1, Math.min(1, ((e.beta  || 0) - 30) / 40));
+    targetMouseX = window.innerWidth  / 2 * (1 + nx);
+    targetMouseY = window.innerHeight / 2 * (1 + ny * 0.5);
+  }, { passive: true });
+}
+if (isMobile) {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+ requires explicit permission — attach on first touch
+    document.addEventListener('touchstart', function askGyro() {
+      DeviceOrientationEvent.requestPermission().then(state => {
+        if (state === 'granted') attachGyro();
+      }).catch(() => {});
+      document.removeEventListener('touchstart', askGyro);
+    }, { once: true });
+  } else {
+    attachGyro();
+  }
+}
 
 // ─── Camera parallax state ─────────────────────────────────────────────────
 
@@ -202,7 +218,7 @@ resizeEarthCanvas();
 // Positions (0–1 of viewport) for each constellation in the earth sky
 const EARTH_ANCHORS = {
   orion:       { x: 0.18, y: 0.22 },
-  cassiopeia:  { x: 0.42, y: 0.12 },
+  taurus:      { x: 0.42, y: 0.12 },
   lyra:        { x: 0.65, y: 0.20 },
   scorpius:    { x: 0.82, y: 0.30 },
   aquarius:    { x: 0.50, y: 0.38 },
@@ -331,6 +347,17 @@ const spEl    = document.getElementById('scroll-progress');
 const spTrack = document.getElementById('sp-track');
 const spStar  = document.getElementById('sp-star');
 
+const desktopNotice = document.getElementById('desktop-notice');
+
+// Arrow click scrolls to first constellation section
+const scrollArrow = document.querySelector('.scroll-arrow');
+if (scrollArrow) {
+  scrollArrow.style.pointerEvents = 'all';
+  scrollArrow.style.cursor = 'pointer';
+  scrollArrow.addEventListener('click', () => {
+    window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+  });
+}
 function updateScrollProgress() {
   const sy     = window.scrollY;
   const vh     = window.innerHeight;
@@ -343,6 +370,12 @@ function updateScrollProgress() {
   } else {
     spEl.classList.add('visible');
     spStar.style.top = (t * 180) + 'px';
+  }
+  // Mobile: show notice only on first page (sy < 0.5vh) or last page (sy > 6vh)
+  if (isMobile && desktopNotice) {
+    const onFirst = sy < vh * 0.5;
+    const onLast  = sy > end * 0.85;
+    desktopNotice.style.display = (onFirst || onLast) ? 'block' : 'none';
   }
 }
 
@@ -518,7 +551,7 @@ function drawConstellations() {
 // Per-constellation tilt angles for the earth view (radians)
 const EARTH_TILTS = {
   orion:      -0.22,
-  cassiopeia:  0.18,
+  taurus:      0.18,
   lyra:       -0.12,
   scorpius:    0.28,
   aquarius:   -0.08,
@@ -652,40 +685,32 @@ function drawEarth(p) {
   }
   earthCtx.restore();
 
-  // ── Moon: semicircle sitting on the horizon ──
+  // ── Moon: full circle floating above horizon (matches hero moon) ──
   const moonX = w * 0.72;
-  const moonY = seaTop;  // base sits exactly on the waterline
+  const moonY = seaTop * 0.30;
   const moonR = Math.min(w, h) * 0.048;
   earthCtx.save();
-  // Wide horizon glow beneath the moon
-  const moonHalo = earthCtx.createRadialGradient(moonX, moonY, moonR * 0.5, moonX, moonY, moonR * 7);
-  moonHalo.addColorStop(0,   `rgba(200,225,255,${0.14 * p})`);
-  moonHalo.addColorStop(0.4, `rgba(140,185,255,${0.06 * p})`);
-  moonHalo.addColorStop(1,   'rgba(0,0,0,0)');
+  // Corona glow
+  const corona = earthCtx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 9);
+  corona.addColorStop(0,   `rgba(208,224,255,${0.15 * p})`);
+  corona.addColorStop(0.3, `rgba(182,210,255,${0.05 * p})`);
+  corona.addColorStop(1,   'rgba(0,0,0,0)');
   earthCtx.beginPath();
-  earthCtx.arc(moonX, moonY, moonR * 7, 0, Math.PI * 2);
-  earthCtx.fillStyle = moonHalo;
+  earthCtx.arc(moonX, moonY, moonR * 9, 0, Math.PI * 2);
+  earthCtx.fillStyle = corona;
   earthCtx.fill();
-  // Clip to sky only (above seaTop) for the disc
+  // Full disc
+  earthCtx.shadowColor = `rgba(200,220,255,${0.50 * p})`;
+  earthCtx.shadowBlur  = 20;
+  const moonDisc = earthCtx.createRadialGradient(moonX - moonR * 0.22, moonY - moonR * 0.28, 0, moonX, moonY, moonR);
+  moonDisc.addColorStop(0,    `rgba(252,255,255,${p})`);
+  moonDisc.addColorStop(0.50, `rgba(228,240,255,${0.97 * p})`);
+  moonDisc.addColorStop(0.82, `rgba(198,220,255,${0.82 * p})`);
+  moonDisc.addColorStop(1,    'rgba(158,192,255,0)');
   earthCtx.beginPath();
-  earthCtx.rect(0, 0, w, seaTop);
-  earthCtx.clip();
-  // Disc fill
-  const moonDisc = earthCtx.createRadialGradient(moonX - moonR * 0.18, moonY - moonR * 0.22, 0, moonX, moonY, moonR);
-  moonDisc.addColorStop(0,   `rgba(248,252,255,${0.96 * p})`);
-  moonDisc.addColorStop(0.55, `rgba(210,230,255,${0.82 * p})`);
-  moonDisc.addColorStop(1,   `rgba(160,200,255,0)`);
-  earthCtx.beginPath();
-  earthCtx.arc(moonX, moonY, moonR, Math.PI, 0); // top semicircle only
-  earthCtx.closePath();
+  earthCtx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
   earthCtx.fillStyle = moonDisc;
   earthCtx.fill();
-  // Rim highlight
-  earthCtx.beginPath();
-  earthCtx.arc(moonX, moonY, moonR, Math.PI, 0);
-  earthCtx.strokeStyle = `rgba(220,238,255,${0.55 * p})`;
-  earthCtx.lineWidth = 1.0;
-  earthCtx.stroke();
   earthCtx.restore();
 
   // Horizon glow
@@ -698,7 +723,7 @@ function drawEarth(p) {
 
   // ── Constellations in the sky ──
   const earthScale = Math.min(w, h) * 0.14;
-  const SECTION_NAMES = { orion:'Projects', cassiopeia:'About Me', lyra:'Skills', scorpius:'Experience', aquarius:'Contact' };
+  const SECTION_NAMES = { orion:'Projects', taurus:'About Me', lyra:'Skills', scorpius:'Experience', aquarius:'Contact' };
   KEYS.forEach(key => {
     const c      = CONSTELLATIONS[key];
     const anchor = EARTH_ANCHORS[key];
@@ -891,6 +916,9 @@ function drawEarth(p) {
   earthCtx.globalAlpha = 1;
   earthCtx.fillStyle = shimmer;
   earthCtx.fillRect(0, seaTop - 1, w, 7);
+
+  // ── Water ripples ──
+  drawWaterRipples(earthCtx, seaTop, h);
 }
 
 // ─── Hover detection ──────────────────────────────────────────────────────
@@ -1075,13 +1103,55 @@ panelClose.addEventListener('click', closePanel);
 document.getElementById('panel-backdrop').addEventListener('click', closePanel);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 
-// ─── Earth canvas: click-to-scroll + star tooltip ─────────────────────────
-// Constellation clicks on the earth page — listen on document because
-// .earth-section sits above the canvas in z-order and swallows pointer events.
+// ─── Water ripples ────────────────────────────────────────────────────────
+const waterRipples = [];
+function spawnWaterRipple(x, y) {
+  waterRipples.push({ x, y, r: 0, maxR: Math.min(earthCanvas.width, earthCanvas.height) * 0.12, life: 1 });
+}
+function drawWaterRipples(ctx, seaTop, h) {
+  waterRipples.forEach((rp, i) => {
+    rp.r    += 2.2;
+    rp.life -= 0.022;
+    if (rp.life <= 0 || rp.y < seaTop) { waterRipples.splice(i, 1); return; }
+    const alpha = rp.life * 0.45;
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(rp.x, rp.y, rp.r, rp.r * 0.38, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(150,210,255,${alpha})`;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    if (rp.r > 10) {
+      ctx.beginPath();
+      ctx.ellipse(rp.x, rp.y, rp.r * 0.6, rp.r * 0.6 * 0.38, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(150,210,255,${alpha * 0.5})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
+// ─── Hero star shine on click ──────────────────────────────────────────────
+const heroStarShines = [];
+const heroCanvas = document.getElementById('hero-canvas');
+heroCanvas.style.pointerEvents = 'all';
+heroCanvas.addEventListener('click', e => {
+  if (window.scrollY > window.innerHeight * 0.3) return;
+  heroStarShines.push({ x: e.clientX, y: e.clientY, life: 1, r: 0 });
+});
+
+// ─── Earth canvas: click-to-scroll + water ripple ─────────────────────────
 document.addEventListener('click', e => {
   if (earthProgress < 0.4) return;
   const w = earthCanvas.width, h = earthCanvas.height;
+  const seaTop = h * 0.60;
   const earthScale = Math.min(w, h) * 0.14;
+  // Water ripple — only when clicking below the waterline
+  if (e.clientY > seaTop) {
+    spawnWaterRipple(e.clientX, e.clientY);
+    return;
+  }
+  // Constellation click — above waterline
   let closest = null, closestDist = Infinity;
   KEYS.forEach(key => {
     const anchor = EARTH_ANCHORS[key];
@@ -1217,10 +1287,15 @@ document.addEventListener('touchend', () => {
 // ─── 3D CSS tilt ──────────────────────────────────────────────────────────
 
 document.addEventListener('mousemove', e => {
-  if (panelZoomKey) return; // don't tilt while zoomed
-  const nx = (e.clientX / window.innerWidth  - 0.5);
-  const ny = (e.clientY / window.innerHeight - 0.5);
-  sceneWrap.style.transform = `perspective(1400px) rotateX(${ny * 2}deg) rotateY(${nx * -2}deg)`;
+  if (panelZoomKey) return;
+  // Only tilt the scene (stars/bg) — disable on earth page so ocean stays flat
+  if (earthProgress < 0.3) {
+    const nx = (e.clientX / window.innerWidth  - 0.5);
+    const ny = (e.clientY / window.innerHeight - 0.5);
+    sceneWrap.style.transform = `perspective(1400px) rotateX(${ny * 2}deg) rotateY(${nx * -2}deg)`;
+  } else {
+    sceneWrap.style.transform = '';
+  }
 });
 
 // ─── Section label visibility (driven by progress) ────────────────────────
@@ -1308,7 +1383,7 @@ function animate() {
   milkyWay.material.opacity = 0.36 * starFade;
 
   // Earth progress
-  earthProgress += (targetEarthProgress - earthProgress) * 0.07;
+  earthProgress += (targetEarthProgress - earthProgress) * (isMobile ? 0.14 : 0.07);
   if (Math.abs(earthProgress - targetEarthProgress) < 0.002) earthProgress = targetEarthProgress;
 
   // Lerp earth hover amounts
@@ -1317,15 +1392,22 @@ function animate() {
     earthHoverAmt[k] += (target - earthHoverAmt[k]) * 0.07;
   });
 
-  if (earthProgress > 0.005) drawEarth(earthProgress);
-  else earthCtx.clearRect(0, 0, earthCanvas.width, earthCanvas.height);
+  if (earthProgress > 0.005) {
+    drawEarth(earthProgress);
+    // Descend effect: slide earth canvas down from above as it enters
+    const slideY = (1 - earthProgress) * -60;
+    earthCanvas.style.transform = `translateY(${slideY}px)`;
+  } else {
+    earthCtx.clearRect(0, 0, earthCanvas.width, earthCanvas.height);
+    earthCanvas.style.transform = 'translateY(-60px)';
+  }
 
   stepWarp();
 
   // Lerp constellation progress + hover fade + draw animation + 3D rotation
   KEYS.forEach(key => {
     const t = targetProgress[key];
-    progress[key] += (t - progress[key]) * 0.07;
+    progress[key] += (t - progress[key]) * (isMobile ? 0.13 : 0.07);
 
     const hTarget = hoveredKey === key ? 1 : 0;
     hoveredProgress[key] += (hTarget - hoveredProgress[key]) * 0.055;
@@ -1442,6 +1524,42 @@ function animate() {
   }
 
   } // end trail block
+
+  // ── Hero star shines ──
+  if (heroStarShines.length > 0) {
+    const hCtx = heroCanvas.getContext('2d');
+    heroStarShines.forEach((sh, i) => {
+      sh.r    += 1.4;
+      sh.life -= 0.028;
+      if (sh.life <= 0) { heroStarShines.splice(i, 1); return; }
+      hCtx.save();
+      const alpha = sh.life;
+      const rays = 6;
+      for (let r = 0; r < rays; r++) {
+        const angle = (r / rays) * Math.PI * 2;
+        const len   = sh.r * (1 + 0.4 * Math.sin(r * 2.1));
+        const grd   = hCtx.createLinearGradient(sh.x, sh.y,
+          sh.x + Math.cos(angle) * len, sh.y + Math.sin(angle) * len);
+        grd.addColorStop(0,   `rgba(255,248,220,${alpha * 0.9})`);
+        grd.addColorStop(1,   'rgba(255,240,180,0)');
+        hCtx.beginPath();
+        hCtx.moveTo(sh.x, sh.y);
+        hCtx.lineTo(sh.x + Math.cos(angle) * len, sh.y + Math.sin(angle) * len);
+        hCtx.strokeStyle = grd;
+        hCtx.lineWidth   = 1.5 * alpha;
+        hCtx.stroke();
+      }
+      // Centre glow
+      const cg = hCtx.createRadialGradient(sh.x, sh.y, 0, sh.x, sh.y, sh.r * 0.5);
+      cg.addColorStop(0,   `rgba(255,255,240,${alpha})`);
+      cg.addColorStop(1,   'rgba(255,240,180,0)');
+      hCtx.beginPath();
+      hCtx.arc(sh.x, sh.y, sh.r * 0.5, 0, Math.PI * 2);
+      hCtx.fillStyle = cg;
+      hCtx.fill();
+      hCtx.restore();
+    });
+  }
 
   // ── GitHub stats visibility ──
   if (earthProgress > 0.5) ghStats.classList.add('visible');

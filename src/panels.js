@@ -33,9 +33,9 @@ export const PANEL_CONTENT = {
     </div>
   `,
 
-  cassiopeia: `
+  taurus: `
     <h2>About Me</h2>
-    <span class="panel-constellation">✦ Cassiopeia · The Queen</span>
+    <span class="panel-constellation">✦ Taurus · The Bull</span>
     <p>Hi — I'm Chanson, a software engineer based in Vancouver, BC, finishing my B.Sc. in Computer Science
        at Simon Fraser University (graduating 2026).</p>
     <p>I enjoy working across the full stack — from Python ETL pipelines and REST APIs to React frontends

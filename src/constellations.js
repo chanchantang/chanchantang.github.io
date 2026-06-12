@@ -1,16 +1,25 @@
 export const CONSTELLATIONS = {
-  cassiopeia: {
-    name: 'Cassiopeia', section: 'About Me', myth: 'The Queen',
+  taurus: {
+    name: 'Taurus', section: 'About Me', myth: 'The Bull',
     color: '#b080ff', rgb: '176,128,255',
     anchor: { x: 0.34, y: 0.50 },
     stars: [
-      { x: -0.48, y:  0.10, size: 2.8, name: 'Caph' },
-      { x: -0.22, y: -0.14, size: 3.4, name: 'Schedar' },
-      { x:  0.00, y:  0.02, size: 2.8, name: 'Gamma Cas' },
-      { x:  0.22, y: -0.16, size: 2.8, name: 'Ruchbah' },
-      { x:  0.48, y:  0.06, size: 2.2, name: 'Segin' },
+      { x:  0.20, y:  0.05, size: 4.8, name: 'Aldebaran' },  // 0 — eye, biggest
+      { x: -0.18, y: -0.68, size: 3.0, name: 'Elnath' },      // 1 — north horn tip
+      { x:  0.50, y: -0.60, size: 2.6, name: 'Alheka' },      // 2 — south horn tip
+      { x: -0.06, y:  0.18, size: 2.8, name: 'Theta Tau' },   // 3 — Hyades
+      { x:  0.02, y:  0.28, size: 2.4, name: 'Gamma Tau' },   // 4 — Hyades
+      { x:  0.14, y:  0.38, size: 2.4, name: 'Delta Tau' },   // 5 — Hyades
+      { x: -0.14, y:  0.30, size: 2.4, name: 'Epsilon Tau' }, // 6 — Hyades
+      { x: -0.42, y:  0.46, size: 2.2, name: 'Lambda Tau' },  // 7 — lower left
     ],
-    lines: [[0,1],[1,2],[2,3],[3,4]]
+    lines: [
+      [6,3],[3,0],          // ε–θ–Aldebaran (left side of V)
+      [5,4],[4,3],          // δ–γ–θ (right side of V)
+      [3,1],                // θ–Elnath (north horn)
+      [0,2],                // Aldebaran–Alheka (south horn)
+      [6,7],                // ε–λ (lower extension)
+    ]
   },
 
   scorpius: {
@@ -199,93 +208,69 @@ export const MYTH_SVGS = {
 </g></svg>`,
 
   // CASSIOPEIA — The Queen
-  cassiopeia: `<svg viewBox="0 0 280 420" xmlns="http://www.w3.org/2000/svg">
+  taurus: `<svg viewBox="0 0 280 420" xmlns="http://www.w3.org/2000/svg">
 <defs>
-  <pattern id="ch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(35)">
-    <line x1="0" y1="0" x2="0" y2="5" stroke="rgba(220,210,255,0.26)" stroke-width="0.8"/>
-  </pattern>
-  <pattern id="ch2" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
-    <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(220,210,255,0.18)" stroke-width="0.7"/>
+  <pattern id="tf" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(30)">
+    <line x1="0" y1="0" x2="0" y2="5" stroke="rgba(220,210,255,0.22)" stroke-width="0.8"/>
   </pattern>
 </defs>
 <g fill="none" stroke="rgba(220,210,255,0.90)" stroke-linecap="round" stroke-linejoin="round">
 
-  <!-- Throne back -->
-  <path d="M60 340 L60 80 Q60 60 80 58 L200 58 Q220 60 220 80 L220 340" stroke-width="1.6"/>
-  <path d="M60 80 L220 80" stroke-width="1.4"/>
-  <!-- Throne back top decoration -->
-  <path d="M60 66 Q140 52 220 66" stroke-width="1.2"/>
-  <path d="M80 58 L80 44 M110 58 L110 38 M140 58 L140 36 M170 58 L170 38 M200 58 L200 44" stroke-width="1.0"/>
-  <!-- Throne pillar detail -->
-  <path d="M68 100 L68 330 M212 100 L212 330" stroke-width="0.8" stroke-opacity="0.5"/>
-  <!-- Throne seat -->
-  <path d="M55 250 L225 250 L225 268 L55 268 Z" stroke-width="1.4"/>
-  <path d="M55 250 L225 250 L225 268 L55 268 Z" fill="url(#ch2)" stroke="none"/>
-  <!-- Throne legs -->
-  <path d="M64 340 L60 380 M216 340 L220 380" stroke-width="1.4"/>
-  <path d="M60 374 Q64 382 80 382 M220 374 Q216 382 200 382" stroke-width="1.1"/>
-  <path d="M80 340 L78 380 M200 340 L202 380" stroke-width="1.2"/>
+  <!-- Horns — long sweeping curves -->
+  <path d="M100 120 Q70 80 50 40 Q44 22 56 14 Q68 8 80 24 Q90 40 100 70" stroke-width="1.8"/>
+  <path d="M180 120 Q210 80 230 40 Q236 22 224 14 Q212 8 200 24 Q190 40 180 70" stroke-width="1.8"/>
+  <!-- Horn tips glow -->
+  <circle cx="55" cy="16" r="4" fill="rgba(220,210,255,0.28)" stroke-width="1.1"/>
+  <circle cx="225" cy="16" r="4" fill="rgba(220,210,255,0.28)" stroke-width="1.1"/>
 
-  <!-- Crown -->
-  <path d="M96 44 L96 20 L108 32 L120 10 L132 28 L144 10 L156 32 L168 20 L168 44" stroke-width="1.6"/>
-  <line x1="92" y1="44" x2="172" y2="44" stroke-width="1.5"/>
-  <!-- Crown gems -->
-  <circle cx="120" cy="16" r="4" fill="rgba(220,210,255,0.35)" stroke-width="1.1"/>
-  <circle cx="140" cy="12" r="5" fill="rgba(220,210,255,0.40)" stroke-width="1.2"/>
-  <circle cx="160" cy="16" r="4" fill="rgba(220,210,255,0.35)" stroke-width="1.1"/>
+  <!-- Head — large rounded bull skull -->
+  <path d="M82 70 Q82 48 100 44 Q140 38 180 44 Q198 48 198 70 L200 120 Q200 148 178 158 Q158 166 140 166 Q122 166 102 158 Q80 148 80 120 Z" stroke-width="1.8"/>
 
-  <!-- Head -->
-  <ellipse cx="140" cy="64" rx="22" ry="26" stroke-width="1.5"/>
-  <!-- Face -->
-  <path d="M128 60 Q131 57 134 60" stroke-width="0.9"/>
-  <path d="M146 60 Q149 57 152 60" stroke-width="0.9"/>
-  <path d="M134 70 Q140 74 146 70" stroke-width="1.0"/>
-  <!-- Hair flowing -->
-  <path d="M118 52 Q106 58 100 72 Q96 86 100 100" stroke-width="1.1" stroke-opacity="0.7"/>
-  <path d="M116 56 Q104 64 100 80" stroke-width="0.7" stroke-opacity="0.4"/>
-  <path d="M162 52 Q174 58 180 72 Q184 86 180 100" stroke-width="1.1" stroke-opacity="0.7"/>
+  <!-- Muzzle -->
+  <ellipse cx="140" cy="156" rx="32" ry="20" stroke-width="1.4"/>
+  <!-- Nostrils -->
+  <ellipse cx="128" cy="158" rx="6" ry="4" stroke-width="1.1"/>
+  <ellipse cx="152" cy="158" rx="6" ry="4" stroke-width="1.1"/>
+
+  <!-- Eyes -->
+  <circle cx="108" cy="100" r="9" stroke-width="1.4"/>
+  <circle cx="108" cy="100" r="4" fill="rgba(220,210,255,0.20)" stroke-width="1.0"/>
+  <circle cx="172" cy="100" r="9" stroke-width="1.4"/>
+  <circle cx="172" cy="100" r="4" fill="rgba(220,210,255,0.20)" stroke-width="1.0"/>
+  <!-- Aldebaran — glowing right eye highlight -->
+  <circle cx="172" cy="100" r="5" fill="rgba(220,210,255,0.35)" stroke="none"/>
+
+  <!-- Brow ridge -->
+  <path d="M88 88 Q108 80 128 86" stroke-width="1.1" stroke-opacity="0.7"/>
+  <path d="M152 86 Q172 80 192 88" stroke-width="1.1" stroke-opacity="0.7"/>
+
+  <!-- Ears -->
+  <path d="M84 90 Q68 80 66 100 Q68 116 84 112" stroke-width="1.4"/>
+  <path d="M196 90 Q212 80 214 100 Q212 116 196 112" stroke-width="1.4"/>
 
   <!-- Neck -->
-  <line x1="133" y1="88" x2="130" y2="100" stroke-width="1.1"/>
-  <line x1="147" y1="88" x2="150" y2="100" stroke-width="1.1"/>
+  <path d="M96 162 Q90 190 88 220 Q86 250 90 270" stroke-width="1.6"/>
+  <path d="M184 162 Q190 190 192 220 Q194 250 190 270" stroke-width="1.6"/>
 
-  <!-- Robes — upper body -->
-  <path d="M96 104 Q118 96 140 94 Q162 96 184 104 L188 248 Q164 258 140 258 Q116 258 92 248 Z" stroke-width="1.6"/>
-  <path d="M96 104 Q118 96 140 94 Q162 96 184 104 L188 248 Q164 258 140 258 Q116 258 92 248 Z" fill="url(#ch)" stroke="none"/>
-  <path d="M96 104 Q118 96 140 94 Q162 96 184 104 L188 248 Q164 258 140 258 Q116 258 92 248 Z" fill="url(#ch2)" stroke="none"/>
-  <!-- Robe fold lines -->
-  <path d="M102 120 Q140 114 178 120" stroke-width="0.7" stroke-opacity="0.45"/>
-  <path d="M98 144 Q140 138 182 144" stroke-width="0.7" stroke-opacity="0.45"/>
-  <path d="M96 168 Q140 162 184 168" stroke-width="0.7" stroke-opacity="0.40"/>
-  <path d="M94 192 Q140 186 186 192" stroke-width="0.7" stroke-opacity="0.38"/>
-  <path d="M94 216 Q140 210 186 216" stroke-width="0.7" stroke-opacity="0.35"/>
+  <!-- Chest / body — powerful barrel chest -->
+  <path d="M90 270 Q80 290 76 320 Q74 350 80 380 Q100 398 140 400 Q180 398 200 380 Q206 350 204 320 Q200 290 190 270 Q170 260 140 258 Q110 260 90 270 Z" stroke-width="1.6"/>
+  <path d="M90 270 Q80 290 76 320 Q74 350 80 380 Q100 398 140 400 Q180 398 200 380 Q206 350 204 320 Q200 290 190 270 Q170 260 140 258 Q110 260 90 270 Z" fill="url(#tf)" stroke="none" opacity="0.6"/>
 
-  <!-- Left arm resting on throne -->
-  <path d="M96 108 Q82 120 72 140 Q66 158 68 180 Q70 200 80 210 L92 206" stroke-width="1.4"/>
-  <!-- Left hand -->
-  <path d="M68 182 Q62 190 64 200 Q68 210 78 212 Q88 212 90 204 Q92 194 86 188" stroke-width="1.2"/>
+  <!-- Chest fur texture lines -->
+  <path d="M108 275 Q120 268 140 266 Q160 268 172 275" stroke-width="0.7" stroke-opacity="0.45"/>
+  <path d="M100 295 Q120 286 140 284 Q160 286 180 295" stroke-width="0.7" stroke-opacity="0.40"/>
+  <path d="M94 316 Q118 306 140 304 Q162 306 186 316" stroke-width="0.7" stroke-opacity="0.35"/>
 
-  <!-- Right arm raised — holding scepter -->
-  <path d="M184 108 Q196 100 206 86 Q214 72 210 56 Q206 44 196 46 Q188 50 188 66 Q190 82 184 96" stroke-width="1.4"/>
-  <!-- Scepter -->
-  <line x1="196" y1="48" x2="200" y2="8" stroke-width="1.3"/>
-  <circle cx="200" cy="8" r="6" fill="rgba(220,210,255,0.30)" stroke-width="1.2"/>
-  <line x1="192" y1="16" x2="208" y2="16" stroke-width="0.9"/>
+  <!-- Front legs -->
+  <path d="M100 370 Q94 390 90 410" stroke-width="1.5"/>
+  <path d="M180 370 Q186 390 190 410" stroke-width="1.5"/>
+  <!-- Hooves -->
+  <path d="M84 408 Q90 416 98 414 Q104 410 102 404" stroke-width="1.3"/>
+  <path d="M196 408 Q190 416 182 414 Q176 410 178 404" stroke-width="1.3"/>
 
-  <!-- Lower robe / skirt -->
-  <path d="M92 250 Q140 264 188 250 L194 380 Q166 390 140 390 Q114 390 86 380 Z" stroke-width="1.4"/>
-  <path d="M92 250 Q140 264 188 250 L194 380 Q166 390 140 390 Q114 390 86 380 Z" fill="url(#ch)" stroke="none"/>
-  <!-- Skirt hem detail -->
-  <path d="M86 372 Q140 382 194 372" stroke-width="1.1"/>
-  <path d="M86 364 Q140 374 194 364" stroke-width="0.7" stroke-opacity="0.5"/>
-  <!-- Skirt folds -->
-  <path d="M98 264 L90 378 M112 266 L108 382 M126 268 L124 384 M140 268 L140 384 M154 268 L156 382 M168 266 L172 380 M182 264 L186 376" stroke-width="0.6" stroke-opacity="0.35"/>
-
-  <!-- Necklace/jewelry -->
-  <path d="M118 100 Q140 108 162 100" stroke-width="1.0" stroke-opacity="0.7"/>
-  <circle cx="130" cy="103" r="2.5" fill="rgba(220,210,255,0.40)"/>
-  <circle cx="140" cy="106" r="3" fill="rgba(220,210,255,0.45)"/>
-  <circle cx="150" cy="103" r="2.5" fill="rgba(220,210,255,0.40)"/>
+  <!-- Dewlap -->
+  <path d="M116 168 Q130 180 140 182 Q150 180 164 168" stroke-width="1.0" stroke-opacity="0.6"/>
+  <path d="M122 178 Q136 194 140 196 Q144 194 158 178" stroke-width="0.8" stroke-opacity="0.45"/>
 
 </g></svg>`,
 

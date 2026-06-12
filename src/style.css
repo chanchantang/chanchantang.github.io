@@ -632,7 +632,8 @@ section {
 #scroll-progress.visible { opacity: 1; }
 #sp-track {
   width: 1px; height: 180px;
-  background: linear-gradient(to bottom, rgba(100,160,255,0.08), rgba(100,160,255,0.22), rgba(100,160,255,0.08));
+  background: linear-gradient(to bottom, rgba(255,200,60,0.08), rgba(255,200,60,0.35), rgba(255,200,60,0.08));
+  box-shadow: 0 0 6px rgba(255,200,60,0.25), 0 0 14px rgba(255,170,30,0.12);
   position: relative;
 }
 #sp-star {
@@ -801,60 +802,65 @@ section {
 /* ── Mobile layout ── */
 @media (max-width: 768px) {
 
-  /* Show desktop notice */
-  #desktop-notice { display: block; }
+  /* Desktop notice — hidden by default, shown via JS only on first/last page */
+  #desktop-notice { display: none; }
 
   /* Hide desktop-only elements */
   #cursor, #trail-canvas { display: none !important; }
   #scroll-progress { display: none; }
   #ui-controls { bottom: 60px; right: 14px; gap: 10px; }
-  #ui-controls button, #ui-controls a {
-    width: 38px; height: 38px;
-  }
+  #ui-controls button, #ui-controls a { width: 38px; height: 38px; }
   #github-stats { left: 10px; bottom: 60px; }
 
-  /* Hero — scale down text, adjust position */
-  .hero-content { left: 5%; top: 48%; transform: translateY(-50%); }
-  .hero-name { font-size: clamp(72px, 22vw, 130px); }
-  .hero-tag  { font-size: 10px; letter-spacing: 3px; }
-  .hero-subtitle { font-size: 11px; letter-spacing: 3px; }
-  .hero-scroll-hint { display: none; }
+  /* Hero — large text filling the screen */
+  .hero-content { left: 5%; top: 46%; transform: translateY(-50%); }
+  .hero-name { font-size: clamp(80px, 25vw, 150px); }
+  .hero-tag  { font-size: 12px; letter-spacing: 3px; }
+  .hero-subtitle { font-size: 14px; letter-spacing: 3px; }
+  .hero-scroll-hint { display: flex; }
 
-  /* Section labels — scale down so the full word fits the narrow viewport */
+  /* Section labels — allow wrapping, fill the screen */
   .section-label h2 {
-    font-size: 13vw;
+    font-size: 22vw;
     letter-spacing: 2px;
-    white-space: nowrap;
+    white-space: normal;
+    text-align: center;
+    line-height: 0.92;
+    word-break: break-word;
+    color: rgba(210, 228, 255, 0.13);
   }
   .section-num { font-size: 10px; }
 
-  /* Panel — full screen on mobile */
+  /* Prevent text selection when holding on constellations */
+  .const-section { user-select: none; -webkit-user-select: none; }
+
+  /* Panel — full-screen bottom sheet */
   #panel-content {
     width: 100vw;
     max-height: 92vh;
     border-radius: 18px 18px 0 0;
-    padding: 40px 24px 36px;
+    padding: 56px 24px 36px;
     position: fixed;
     bottom: 0; left: 0;
     transform: translateY(40px) scale(1) !important;
   }
-  #panel-overlay {
-    align-items: flex-end;
-    justify-content: stretch;
-  }
-  #panel-overlay.visible #panel-content {
-    transform: translateY(0) scale(1) !important;
-  }
-  #panel-inner h2 { font-size: 30px; }
-  #panel-inner p  { font-size: 15px; line-height: 1.65; }
+  #panel-overlay { align-items: flex-end; justify-content: stretch; }
+  #panel-overlay.visible #panel-content { transform: translateY(0) scale(1) !important; }
+
+  /* Bigger close button */
+  #panel-close { font-size: 26px; top: 16px; right: 20px; width: 44px; height: 44px;
+                 display: flex; align-items: center; justify-content: center; }
+
+  #panel-inner h2 { font-size: 32px; }
+  #panel-inner p  { font-size: 16px; line-height: 1.7; }
   .skill-grid { gap: 8px; }
-  .skill-tag  { font-size: 12px; padding: 6px 12px; }
+  .skill-tag  { font-size: 13px; padding: 7px 13px; }
 
   /* Open-to-work */
   .open-to-work { margin-top: 16px; }
-  .otw-label { font-size: 8px; }
+  .otw-label { font-size: 10px; }
 
-  /* GitHub stats — smaller on mobile */
+  /* GitHub stats */
   #github-stats a { padding: 10px 14px; gap: 12px; }
   .gh-stat-val { font-size: 14px; }
 }
