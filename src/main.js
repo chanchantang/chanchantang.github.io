@@ -431,7 +431,7 @@ function drawConstellations() {
 
     const c      = CONSTELLATIONS[key];
     const pts    = starPoints(key);
-    const isHov  = (hoveredKey === key);
+    const isHov  = isMobile || (hoveredKey === key);
 
     // ── Lines ──
     if (isHov) {
@@ -754,16 +754,42 @@ function drawEarth(p) {
 
     const epts = c.stars.map(s => ({ x: s.x * earthScale, y: -s.y * earthScale, size: s.size }));
 
-    earthCtx.strokeStyle = `rgba(${c.rgb},${0.55 + hov * 0.35})`;
-    earthCtx.lineWidth   = 0.9 + hov * 0.6;
     earthCtx.shadowColor = c.color;
-    earthCtx.shadowBlur  = 6 + hov * 10;
-    c.lines.forEach(([a, b]) => {
-      earthCtx.beginPath();
-      earthCtx.moveTo(epts[a].x, epts[a].y);
-      earthCtx.lineTo(epts[b].x, epts[b].y);
-      earthCtx.stroke();
-    });
+    if (isMobile && lineDrawOrder[key] && lineDrawOrder[key].length > 0) {
+      // Animated sequential line draw (same as hover effect on desktop)
+      const order = lineDrawOrder[key];
+      const front = lineDrawAnim[key] * (order.length + 1.2);
+      order.forEach((lineIdx, i) => {
+        const [a, b] = c.lines[lineIdx];
+        const seg = Math.min(1, Math.max(0, front - i));
+        if (seg <= 0) return;
+        const ageBehind = front - i - 1;
+        const glow  = ageBehind < 0 ? 1 : Math.max(0.38, 1 - ageBehind * 0.14);
+        const lw    = ageBehind < 0 ? 2.4 : 1.1;
+        const blur  = ageBehind < 0 ? 24  : 7;
+        const [sx, sy] = [epts[a].x, epts[a].y];
+        const [ex, ey] = [epts[b].x, epts[b].y];
+        earthCtx.save();
+        earthCtx.strokeStyle = `rgba(${c.rgb},${glow * 0.90})`;
+        earthCtx.lineWidth   = lw;
+        earthCtx.shadowBlur  = blur;
+        earthCtx.beginPath();
+        earthCtx.moveTo(sx, sy);
+        earthCtx.lineTo(sx + (ex - sx) * seg, sy + (ey - sy) * seg);
+        earthCtx.stroke();
+        earthCtx.restore();
+      });
+    } else {
+      earthCtx.strokeStyle = `rgba(${c.rgb},${0.55 + hov * 0.35})`;
+      earthCtx.lineWidth   = 0.9 + hov * 0.6;
+      earthCtx.shadowBlur  = 6 + hov * 10;
+      c.lines.forEach(([a, b]) => {
+        earthCtx.beginPath();
+        earthCtx.moveTo(epts[a].x, epts[a].y);
+        earthCtx.lineTo(epts[b].x, epts[b].y);
+        earthCtx.stroke();
+      });
+    }
 
     epts.forEach((pt, si) => {
       const sp = pulse + hov * 0.06 * Math.sin(elapsed * 0.032 + si * 1.3);
@@ -782,16 +808,17 @@ function drawEarth(p) {
     earthCtx.restore();
 
     earthCtx.save();
+    const labelY = cy + earthScale * 0.90;
     earthCtx.globalAlpha = p * 0.80;
-    earthCtx.font = '300 9px "Space Mono", monospace';
+    earthCtx.font = `300 ${isMobile ? 13 : 12}px "Space Mono", monospace`;
     earthCtx.fillStyle = `rgba(${c.rgb},0.90)`;
     earthCtx.textAlign = 'center';
     earthCtx.letterSpacing = '3px';
-    earthCtx.fillText((SECTION_NAMES[key] || key).toUpperCase(), cx, cy + earthScale * 0.62);
+    earthCtx.fillText((SECTION_NAMES[key] || key).toUpperCase(), cx, labelY);
     earthCtx.globalAlpha = p * 0.40;
-    earthCtx.font = '300 7px "Space Mono", monospace';
+    earthCtx.font = `300 ${isMobile ? 11 : 9}px "Space Mono", monospace`;
     earthCtx.fillStyle = `rgba(${c.rgb},0.70)`;
-    earthCtx.fillText(c.name.toUpperCase(), cx, cy + earthScale * 0.62 + 13);
+    earthCtx.fillText(c.name.toUpperCase(), cx, labelY + (isMobile ? 18 : 15));
     earthCtx.restore();
   });
 
@@ -1421,9 +1448,9 @@ function animate() {
   earthProgress += (targetEarthProgress - earthProgress) * (isMobile ? 0.14 : 0.07);
   if (Math.abs(earthProgress - targetEarthProgress) < 0.002) earthProgress = targetEarthProgress;
 
-  // Lerp earth hover amounts
+  // Lerp earth hover amounts — on mobile all constellations animate at full hover
   KEYS.forEach(k => {
-    const target = earthHoverKey === k ? 1 : 0;
+    const target = isMobile ? 1 : (earthHoverKey === k ? 1 : 0);
     earthHoverAmt[k] += (target - earthHoverAmt[k]) * 0.07;
   });
 
@@ -1444,11 +1471,11 @@ function animate() {
     const t = targetProgress[key];
     progress[key] += (t - progress[key]) * (isMobile ? 0.13 : 0.07);
 
-    const hTarget = hoveredKey === key ? 1 : 0;
+    const hTarget = (isMobile || hoveredKey === key) ? 1 : 0;
     hoveredProgress[key] += (hTarget - hoveredProgress[key]) * 0.055;
     if (Math.abs(progress[key] - t) < 0.002) progress[key] = t;
 
-    if (hoveredKey === key) {
+    if (isMobile || hoveredKey === key) {
       if (lineDrawOrder[key].length === 0) shuffleDrawOrder(key);
 
       if (lineDrawAnim[key] < 1) {
