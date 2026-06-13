@@ -353,8 +353,12 @@ const desktopNotice = document.getElementById('desktop-notice');
 let scrollGlowTimer = null;
 window.addEventListener('scroll', () => {
   spTrack.classList.add('scrolling');
+  spStar.classList.add('scrolling');
   clearTimeout(scrollGlowTimer);
-  scrollGlowTimer = setTimeout(() => spTrack.classList.remove('scrolling'), 600);
+  scrollGlowTimer = setTimeout(() => {
+    spTrack.classList.remove('scrolling');
+    spStar.classList.remove('scrolling');
+  }, 1800);
 }, { passive: true });
 
 // Arrow click scrolls to first constellation section
@@ -693,30 +697,32 @@ function drawEarth(p) {
   }
   earthCtx.restore();
 
-  // ── Moon: full circle floating above horizon (matches hero moon) ──
+  // ── Moon: semi-circle sitting on the waterline ──
   const moonX = w * 0.72;
-  const moonY = seaTop - Math.min(w, h) * 0.048; // just above the waterline
-  const moonR = Math.min(w, h) * 0.048;
+  const moonY = seaTop; // centre at waterline so top half shows above water
+  const moonR = Math.min(w, h) * 0.110;
   earthCtx.save();
-  // Corona glow
-  const corona = earthCtx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 9);
-  corona.addColorStop(0,   `rgba(208,224,255,${0.15 * p})`);
-  corona.addColorStop(0.3, `rgba(182,210,255,${0.05 * p})`);
+  // Corona glow (clip to upper half so it doesn't bleed into water)
+  const corona = earthCtx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 7);
+  corona.addColorStop(0,   `rgba(208,224,255,${0.18 * p})`);
+  corona.addColorStop(0.3, `rgba(182,210,255,${0.06 * p})`);
   corona.addColorStop(1,   'rgba(0,0,0,0)');
   earthCtx.beginPath();
-  earthCtx.arc(moonX, moonY, moonR * 9, 0, Math.PI * 2);
+  earthCtx.arc(moonX, moonY, moonR * 7, Math.PI, 0); // upper semicircle
+  earthCtx.closePath();
   earthCtx.fillStyle = corona;
   earthCtx.fill();
-  // Full disc
-  earthCtx.shadowColor = `rgba(200,220,255,${0.50 * p})`;
-  earthCtx.shadowBlur  = 20;
+  // Semi-disc (upper half only)
+  earthCtx.shadowColor = `rgba(200,220,255,${0.55 * p})`;
+  earthCtx.shadowBlur  = 22;
   const moonDisc = earthCtx.createRadialGradient(moonX - moonR * 0.22, moonY - moonR * 0.28, 0, moonX, moonY, moonR);
   moonDisc.addColorStop(0,    `rgba(252,255,255,${p})`);
   moonDisc.addColorStop(0.50, `rgba(228,240,255,${0.97 * p})`);
-  moonDisc.addColorStop(0.82, `rgba(198,220,255,${0.82 * p})`);
+  moonDisc.addColorStop(0.82, `rgba(198,220,255,${0.85 * p})`);
   moonDisc.addColorStop(1,    'rgba(158,192,255,0)');
   earthCtx.beginPath();
-  earthCtx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+  earthCtx.arc(moonX, moonY, moonR, Math.PI, 0); // upper semicircle
+  earthCtx.closePath();
   earthCtx.fillStyle = moonDisc;
   earthCtx.fill();
   earthCtx.restore();
@@ -1144,14 +1150,25 @@ function drawWaterRipples(ctx, seaTop, h) {
 }
 
 // ─── Hero star shine on click ──────────────────────────────────────────────
+// Use a dedicated overlay canvas so hero.js clearRect doesn't erase shines
 const heroStarShines = [];
 const heroCanvas = document.getElementById('hero-canvas');
-heroCanvas.style.pointerEvents = 'all';
-heroCanvas.addEventListener('click', e => {
+const shineCanvas = document.createElement('canvas');
+shineCanvas.style.cssText = 'position:fixed;inset:0;pointer-events:all;z-index:2';
+shineCanvas.width  = window.innerWidth;
+shineCanvas.height = window.innerHeight;
+heroCanvas.parentElement.appendChild(shineCanvas);
+const shineCtx = shineCanvas.getContext('2d');
+window.addEventListener('resize', () => {
+  shineCanvas.width  = window.innerWidth;
+  shineCanvas.height = window.innerHeight;
+});
+
+shineCanvas.addEventListener('click', e => {
   if (window.scrollY > window.innerHeight * 0.3) return;
-  // Only spawn in the sky area (above the mountains — roughly top 62% of screen)
+  // Only in sky area (above mountains ~62% of screen height)
   if (e.clientY > window.innerHeight * 0.62) return;
-  heroStarShines.push({ x: e.clientX, y: e.clientY, life: 1 });
+  heroStarShines.push({ x: e.clientX, y: e.clientY, life: 1, age: 0, angle: Math.random() * Math.PI * 2 });
 });
 
 // ─── Earth canvas: click-to-scroll + water ripple ─────────────────────────
@@ -1543,25 +1560,44 @@ function animate() {
 
   } // end trail block
 
-  // ── Hero star shines ──
-  if (heroStarShines.length > 0) {
-    const hCtx = heroCanvas.getContext('2d');
-    heroStarShines.forEach((sh, i) => {
-      sh.life -= 0.012; // slow fade — lingers gently
-      if (sh.life <= 0) { heroStarShines.splice(i, 1); return; }
-      const alpha = sh.life * 0.55;
-      hCtx.save();
-      const glow = hCtx.createRadialGradient(sh.x, sh.y, 0, sh.x, sh.y, 5);
-      glow.addColorStop(0,   `rgba(255,252,230,${alpha})`);
-      glow.addColorStop(0.4, `rgba(220,240,255,${alpha * 0.5})`);
-      glow.addColorStop(1,   'rgba(180,210,255,0)');
-      hCtx.beginPath();
-      hCtx.arc(sh.x, sh.y, 5, 0, Math.PI * 2);
-      hCtx.fillStyle = glow;
-      hCtx.fill();
-      hCtx.restore();
-    });
-  }
+  // ── Hero star shines (on dedicated overlay canvas) ──
+  shineCtx.clearRect(0, 0, shineCanvas.width, shineCanvas.height);
+  heroStarShines.forEach((sh, i) => {
+    sh.age  += 1;
+    sh.life -= 0.004; // ~250 frames = ~4 seconds to fade out at 60fps
+    if (sh.life <= 0) { heroStarShines.splice(i, 1); return; }
+    const fadeIn = Math.min(sh.age / 18, 1);
+    const alpha = fadeIn * sh.life;
+    const { x, y } = sh;
+    const r = 5;
+    shineCtx.save();
+    // glow — lowered opacity only
+    shineCtx.globalAlpha = alpha * 0.25;
+    const glow = shineCtx.createRadialGradient(x, y, 0, x, y, r * 3);
+    glow.addColorStop(0,   `rgba(255,252,220,1)`);
+    glow.addColorStop(1,   'rgba(180,210,255,0)');
+    shineCtx.beginPath();
+    shineCtx.arc(x, y, r * 3, 0, Math.PI * 2);
+    shineCtx.fillStyle = glow;
+    shineCtx.fill();
+    // 4-pointed star — full brightness
+    shineCtx.globalAlpha = alpha * 0.85;
+    shineCtx.translate(x, y);
+    shineCtx.rotate(sh.angle);
+    shineCtx.fillStyle = `rgba(255,252,230,1)`;
+    shineCtx.beginPath();
+    const arms = 4, inner = r * 0.18, outer = r;
+    for (let a = 0; a < arms * 2; a++) {
+      const ang = (a * Math.PI) / arms - Math.PI / 2;
+      const rad = a % 2 === 0 ? outer : inner;
+      a === 0
+        ? shineCtx.moveTo(Math.cos(ang) * rad, Math.sin(ang) * rad)
+        : shineCtx.lineTo(Math.cos(ang) * rad, Math.sin(ang) * rad);
+    }
+    shineCtx.closePath();
+    shineCtx.fill();
+    shineCtx.restore();
+  });
 
   // ── GitHub stats visibility ──
   if (earthProgress > 0.5) ghStats.classList.add('visible');
