@@ -164,7 +164,7 @@ export function createStarfield(scene) {
   geoMW.setAttribute('color',    new THREE.BufferAttribute(cMW, 3));
   const matMW = new THREE.PointsMaterial({
     map: tex, vertexColors: true,
-    size: 1.8, transparent: true, opacity: 0.52, depthWrite: false,
+    size: 2.0, transparent: true, opacity: 0.78, depthWrite: false,
   });
   const milkyWay = new THREE.Points(geoMW, matMW);
   milkyWay.rotation.z = Math.PI / 7;
@@ -204,7 +204,7 @@ export function createStarfield(scene) {
   geoMW2.setAttribute('color',    new THREE.BufferAttribute(cMW2, 3));
   const matMW2 = new THREE.PointsMaterial({
     map: tex, vertexColors: true,
-    size: 1.3, transparent: true, opacity: 0.38, depthWrite: false,
+    size: 1.5, transparent: true, opacity: 0.55, depthWrite: false,
   });
   const milkyWay2 = new THREE.Points(geoMW2, matMW2);
   milkyWay2.rotation.z = -Math.PI / 5;

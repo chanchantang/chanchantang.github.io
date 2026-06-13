@@ -4,18 +4,6 @@ An interactive personal portfolio with a galaxy/constellation theme. Built with 
 
 **Live site:** [chanchantang.github.io](https://chanchantang.github.io)
 
-## Features
-
-- Galaxy starfield with animated nebula and milky way
-- Scroll-driven constellation sections (Taurus, Scorpius, Orion, Lyra, Aquarius)
-- Warp-speed page transition to earth scene
-- Animated earth page with aurora borealis, shooting stars, bioluminescence, moon, and ocean
-- Water ripple on click, star shine on hero click
-- Custom cursor trail, scroll progress indicator
-- Mobile support with gyroscope parallax
-- Three colour themes (Night, Dawn, Mars)
-- Ambient audio (Mario Galaxy-inspired)
-
 ## Tech Stack
 
 - [Three.js](https://threejs.org/) — 3D starfield and WebGL rendering

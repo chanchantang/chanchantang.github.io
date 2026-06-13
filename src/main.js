@@ -349,6 +349,14 @@ const spStar  = document.getElementById('sp-star');
 
 const desktopNotice = document.getElementById('desktop-notice');
 
+// Scroll track glow — brightens while scrolling, dims when idle
+let scrollGlowTimer = null;
+window.addEventListener('scroll', () => {
+  spTrack.classList.add('scrolling');
+  clearTimeout(scrollGlowTimer);
+  scrollGlowTimer = setTimeout(() => spTrack.classList.remove('scrolling'), 600);
+}, { passive: true });
+
 // Arrow click scrolls to first constellation section
 const scrollArrow = document.querySelector('.scroll-arrow');
 if (scrollArrow) {
@@ -687,7 +695,7 @@ function drawEarth(p) {
 
   // ── Moon: full circle floating above horizon (matches hero moon) ──
   const moonX = w * 0.72;
-  const moonY = seaTop * 0.30;
+  const moonY = seaTop - Math.min(w, h) * 0.048; // just above the waterline
   const moonR = Math.min(w, h) * 0.048;
   earthCtx.save();
   // Corona glow
@@ -1115,6 +1123,10 @@ function drawWaterRipples(ctx, seaTop, h) {
     if (rp.life <= 0 || rp.y < seaTop) { waterRipples.splice(i, 1); return; }
     const alpha = rp.life * 0.45;
     ctx.save();
+    // Clip to ocean area only
+    ctx.beginPath();
+    ctx.rect(0, seaTop, ctx.canvas.width, ctx.canvas.height - seaTop);
+    ctx.clip();
     ctx.beginPath();
     ctx.ellipse(rp.x, rp.y, rp.r, rp.r * 0.38, 0, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(150,210,255,${alpha})`;
@@ -1137,18 +1149,24 @@ const heroCanvas = document.getElementById('hero-canvas');
 heroCanvas.style.pointerEvents = 'all';
 heroCanvas.addEventListener('click', e => {
   if (window.scrollY > window.innerHeight * 0.3) return;
-  heroStarShines.push({ x: e.clientX, y: e.clientY, life: 1, r: 0 });
+  // Only spawn in the sky area (above the mountains — roughly top 62% of screen)
+  if (e.clientY > window.innerHeight * 0.62) return;
+  heroStarShines.push({ x: e.clientX, y: e.clientY, life: 1 });
 });
 
 // ─── Earth canvas: click-to-scroll + water ripple ─────────────────────────
 document.addEventListener('click', e => {
   if (earthProgress < 0.4) return;
   const w = earthCanvas.width, h = earthCanvas.height;
-  const seaTop = h * 0.60;
+  const rect = earthCanvas.getBoundingClientRect();
+  const canvasY = e.clientY - rect.top;
+  const seaTopFrac = 0.60;
+  const seaTopPx = h * seaTopFrac; // canvas coords
+  const seaTopScreen = rect.top + rect.height * seaTopFrac; // screen coords
   const earthScale = Math.min(w, h) * 0.14;
-  // Water ripple — only when clicking below the waterline
-  if (e.clientY > seaTop) {
-    spawnWaterRipple(e.clientX, e.clientY);
+  // Water ripple — only when clicking at or below the waterline
+  if (e.clientY >= seaTopScreen) {
+    spawnWaterRipple(e.clientX, canvasY);
     return;
   }
   // Constellation click — above waterline
@@ -1529,33 +1547,17 @@ function animate() {
   if (heroStarShines.length > 0) {
     const hCtx = heroCanvas.getContext('2d');
     heroStarShines.forEach((sh, i) => {
-      sh.r    += 1.4;
-      sh.life -= 0.028;
+      sh.life -= 0.012; // slow fade — lingers gently
       if (sh.life <= 0) { heroStarShines.splice(i, 1); return; }
+      const alpha = sh.life * 0.55;
       hCtx.save();
-      const alpha = sh.life;
-      const rays = 6;
-      for (let r = 0; r < rays; r++) {
-        const angle = (r / rays) * Math.PI * 2;
-        const len   = sh.r * (1 + 0.4 * Math.sin(r * 2.1));
-        const grd   = hCtx.createLinearGradient(sh.x, sh.y,
-          sh.x + Math.cos(angle) * len, sh.y + Math.sin(angle) * len);
-        grd.addColorStop(0,   `rgba(255,248,220,${alpha * 0.9})`);
-        grd.addColorStop(1,   'rgba(255,240,180,0)');
-        hCtx.beginPath();
-        hCtx.moveTo(sh.x, sh.y);
-        hCtx.lineTo(sh.x + Math.cos(angle) * len, sh.y + Math.sin(angle) * len);
-        hCtx.strokeStyle = grd;
-        hCtx.lineWidth   = 1.5 * alpha;
-        hCtx.stroke();
-      }
-      // Centre glow
-      const cg = hCtx.createRadialGradient(sh.x, sh.y, 0, sh.x, sh.y, sh.r * 0.5);
-      cg.addColorStop(0,   `rgba(255,255,240,${alpha})`);
-      cg.addColorStop(1,   'rgba(255,240,180,0)');
+      const glow = hCtx.createRadialGradient(sh.x, sh.y, 0, sh.x, sh.y, 5);
+      glow.addColorStop(0,   `rgba(255,252,230,${alpha})`);
+      glow.addColorStop(0.4, `rgba(220,240,255,${alpha * 0.5})`);
+      glow.addColorStop(1,   'rgba(180,210,255,0)');
       hCtx.beginPath();
-      hCtx.arc(sh.x, sh.y, sh.r * 0.5, 0, Math.PI * 2);
-      hCtx.fillStyle = cg;
+      hCtx.arc(sh.x, sh.y, 5, 0, Math.PI * 2);
+      hCtx.fillStyle = glow;
       hCtx.fill();
       hCtx.restore();
     });
