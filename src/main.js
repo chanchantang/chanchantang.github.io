@@ -366,6 +366,8 @@ const scrollArrow = document.querySelector('.scroll-arrow');
 if (scrollArrow) {
   scrollArrow.style.pointerEvents = 'all';
   scrollArrow.style.cursor = 'pointer';
+  // Start bounce after page settles — JS delay avoids mid-cycle glitch from CSS delay
+  setTimeout(() => scrollArrow.classList.add('bouncing'), 2200);
   scrollArrow.addEventListener('click', () => {
     window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
   });
