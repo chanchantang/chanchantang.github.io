@@ -620,7 +620,7 @@ function drawEarth(p) {
   earthCtx.fillRect(0, 0, w, seaTop);
 
   // ── Aurora borealis — soft wavy curtains in the lower sky ──
-  if (!prefersReducedMotion && !isMobile) {
+  if (!prefersReducedMotion) {
   earthCtx.save();
   const AURORA = [
     { rgb: '30,200,160', phase: 0 },
@@ -1024,6 +1024,18 @@ function hideMyth() {
 document.querySelectorAll('.const-section').forEach(section => {
   const key = section.dataset.constellation;
 
+  // Keyboard accessibility — tab to focus, Enter/Space to open
+  section.setAttribute('tabindex', '0');
+  section.setAttribute('role', 'button');
+  section.setAttribute('aria-label', `Open ${key} panel`);
+  section.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const ctr = constCenter(key);
+      openPanel(key, ctr.x, ctr.y);
+    }
+  });
+
   // ── Mouse (desktop) ──
   if (!isMobile) {
     section.addEventListener('mousemove', e => {
@@ -1112,24 +1124,25 @@ function openPanel(key, clickX, clickY) {
   if (panelZoomKey) return;
   panelZoomKey = key;
 
-  // Zoom from the exact click point (falling back to constellation center)
   const ctr = constCenter(key);
   const ox = clickX !== undefined ? clickX : ctr.x;
   const oy = clickY !== undefined ? clickY : ctr.y;
   zoomWrap.style.transformOrigin = `${ox}px ${oy}px`;
 
   gsap.timeline()
-    .to(zoomWrap, {
-      scale: 4.5,
-      duration: 0.65,
-      ease: 'power3.in',
-    })
+    .to(zoomWrap, { scale: 4.5, duration: 0.65, ease: 'power3.in' })
     .call(() => {
       panelInner.innerHTML = PANEL_CONTENT[key];
       panelInner.querySelectorAll('a').forEach(a => (a.style.cursor = 'none'));
       document.body.classList.add('panel-open');
       panelOverlay.classList.remove('hidden');
-      requestAnimationFrame(() => panelOverlay.classList.add('visible'));
+      requestAnimationFrame(() => {
+        panelOverlay.classList.add('visible');
+        // Move focus to close button so keyboard users are inside the panel
+        panelClose.focus();
+      });
+      // Pause animation loop while panel is open — saves GPU
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     });
 }
 
@@ -1142,9 +1155,38 @@ function closePanel() {
     scale: 1,
     duration: 0.70,
     ease: 'power3.out',
-    onComplete: () => { panelZoomKey = null; },
+    onComplete: () => {
+      panelZoomKey = null;
+      // Resume animation loop
+      if (!rafId) animate();
+    },
   });
 }
+
+// Focus trap — keep Tab/Shift-Tab inside the panel while it's open
+panelOverlay.addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const focusable = Array.from(panelOverlay.querySelectorAll(
+    'button, a[href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
+  )).filter(el => !el.disabled);
+  if (!focusable.length) return;
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault(); last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault(); first.focus();
+  }
+});
+
+// Swipe down to dismiss on mobile
+let panelSwipeStartY = 0;
+panelOverlay.addEventListener('touchstart', e => {
+  panelSwipeStartY = e.touches[0].clientY;
+}, { passive: true });
+panelOverlay.addEventListener('touchend', e => {
+  const dy = e.changedTouches[0].clientY - panelSwipeStartY;
+  if (dy > 80) closePanel();
+}, { passive: true });
 
 panelClose.addEventListener('click', closePanel);
 document.getElementById('panel-backdrop').addEventListener('click', closePanel);
@@ -1236,7 +1278,7 @@ document.addEventListener('click', e => {
   }
 });
 
-// ─── Custom cursor + star tooltip ─────────────────────────────────────────
+// ─── Unified mousemove (cursor, trail, tooltip, drag, tilt) ───────────────
 
 let earthHoverKey = null;
 
@@ -1244,16 +1286,41 @@ if (isMobile) cursor.style.display = 'none';
 
 document.addEventListener('mousemove', e => {
   if (isMobile) return;
-  cursor.style.left   = e.clientX + 'px';
-  cursor.style.top    = e.clientY + 'px';
+
+  // Cursor
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top  = e.clientY + 'px';
   targetMouseX = e.clientX;
   targetMouseY = e.clientY;
 
-  // Detect which earth constellation the mouse is over
+  // Drag-to-rotate
+  if (isDragging && dragKey) {
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    constRotVel[dragKey].y = (e.clientX - dragLastX) * 0.004;
+    constRotVel[dragKey].x = (e.clientY - dragLastY) * 0.004;
+    dragLastX = e.clientX; dragLastY = e.clientY;
+    constRotTarget[dragKey].y = dragRotY + dx * 0.003;
+    constRotTarget[dragKey].x = dragRotX + dy * 0.003;
+    bgDriftTargetX = dx * 0.018;
+    bgDriftTargetY = dy * 0.012;
+  }
+
+  // 3D tilt — disabled on earth page so ocean stays flat
+  if (!panelZoomKey) {
+    if (earthProgress < 0.3) {
+      const nx = (e.clientX / window.innerWidth  - 0.5);
+      const ny = (e.clientY / window.innerHeight - 0.5);
+      sceneWrap.style.transform = `perspective(1400px) rotateX(${ny * 2}deg) rotateY(${nx * -2}deg)`;
+    } else {
+      sceneWrap.style.transform = '';
+    }
+  }
+
+  // Earth constellation hover detection
   if (earthProgress > 0.4) {
     const w = earthCanvas.width, h = earthCanvas.height;
-    const earthScale = Math.min(w, h) * 0.14;
-    const hitR = earthScale * 1.1;
+    const hitR = Math.min(w, h) * 0.14 * 1.1;
     let found = null;
     KEYS.forEach(key => {
       const a = EARTH_ANCHORS[key];
@@ -1281,7 +1348,7 @@ document.addEventListener('mousemove', e => {
   trailPoints.push({ x: e.clientX, y: e.clientY, age: 0 });
   if (trailPoints.length > TRAIL_MAX) trailPoints.shift();
 
-  // Star name tooltip — check proximity to projected foreground stars
+  // Star name tooltip
   if (earthProgress < 0.3) {
     const tempVec = _tempVec;
     let nearest = null, nearDist = 40;
@@ -1298,8 +1365,8 @@ document.addEventListener('mousemove', e => {
       starTooltip.textContent = `${name}  ·  ${dist} ly`;
       const ttW = starTooltip.offsetWidth || 140;
       const ttL = Math.min(e.clientX + 16, window.innerWidth - ttW - 8);
-      starTooltip.style.left  = ttL + 'px';
-      starTooltip.style.top   = (e.clientY - 24) + 'px';
+      starTooltip.style.left = ttL + 'px';
+      starTooltip.style.top  = (e.clientY - 24) + 'px';
       starTooltip.classList.add('visible');
       hoveredStar = nearest;
     } else if (hoveredStar !== null) {
@@ -1311,30 +1378,13 @@ document.addEventListener('mousemove', e => {
   }
 });
 
-// ─── Constellation drag-to-rotate ────────────────────────────────────────
-
-document.addEventListener('mousemove', e => {
-  if (!isDragging || !dragKey) return;
-  const dx = e.clientX - dragStartX;
-  const dy = e.clientY - dragStartY;
-  // Track velocity for inertia
-  constRotVel[dragKey].y = (e.clientX - dragLastX) * 0.004;
-  constRotVel[dragKey].x = (e.clientY - dragLastY) * 0.004;
-  dragLastX = e.clientX; dragLastY = e.clientY;
-  // Write to target — constRot lerps toward it each frame (smooth)
-  constRotTarget[dragKey].y = dragRotY + dx * 0.003;
-  constRotTarget[dragKey].x = dragRotX + dy * 0.003;
-  // Nudge background in drag direction
-  bgDriftTargetX = dx * 0.018;
-  bgDriftTargetY = dy * 0.012;
-});
-
 document.addEventListener('mouseup', () => {
   isDragging = false; dragKey = null;
   bgDriftTargetX = 0; bgDriftTargetY = 0;
 });
 
-// Touch drag rotation (mirrors the mousemove/mouseup handlers above)
+// ─── Touch drag rotation ──────────────────────────────────────────────────
+
 document.addEventListener('touchmove', e => {
   if (!isDragging || !dragKey) return;
   const t  = e.touches[0];
@@ -1350,24 +1400,10 @@ document.addEventListener('touchmove', e => {
 }, { passive: true });
 
 document.addEventListener('touchend', () => {
-  if (!dragKey) return; // section touchend handles its own reset
+  if (!dragKey) return;
   isDragging = false; dragKey = null;
   bgDriftTargetX = 0; bgDriftTargetY = 0;
 }, { passive: true });
-
-// ─── 3D CSS tilt ──────────────────────────────────────────────────────────
-
-document.addEventListener('mousemove', e => {
-  if (panelZoomKey) return;
-  // Only tilt the scene (stars/bg) — disable on earth page so ocean stays flat
-  if (earthProgress < 0.3) {
-    const nx = (e.clientX / window.innerWidth  - 0.5);
-    const ny = (e.clientY / window.innerHeight - 0.5);
-    sceneWrap.style.transform = `perspective(1400px) rotateX(${ny * 2}deg) rotateY(${nx * -2}deg)`;
-  } else {
-    sceneWrap.style.transform = '';
-  }
-});
 
 // ─── Section label visibility (driven by progress) ────────────────────────
 
@@ -1403,9 +1439,10 @@ function syncLabels() {
 // ─── Animation loop ───────────────────────────────────────────────────────
 
 let animTime = 0;
+let rafId = null;
 
 function animate() {
-  requestAnimationFrame(animate);
+  rafId = requestAnimationFrame(animate);
   animTime += 0.004;
 
   const sy  = window.scrollY;

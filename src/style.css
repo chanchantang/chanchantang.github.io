@@ -236,7 +236,8 @@ section {
 }
 
 /* ── Constellation sections ── */
-.const-section { pointer-events: all; }
+.const-section { pointer-events: all; outline: none; }
+.const-section:focus-visible { box-shadow: 0 0 0 2px rgba(255,220,100,0.6); border-radius: 4px; }
 
 /* Full-section container — carries the opacity transition */
 .section-label {
