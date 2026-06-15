@@ -23,6 +23,7 @@ const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerH
 camera.position.z = 120;
 
 const { stars1, stars2, stars3, milkyWay, nebulaSprites, nebulaOrigPos } = createStarfield(scene);
+const _tempVec = new THREE.Vector3(); // reused each mousemove — avoids per-event allocation
 
 // ─── Hero mountain scene ───────────────────────────────────────────────────
 const hero = createHero();
@@ -379,7 +380,10 @@ function updateScrollProgress() {
   const start  = vh;
   const end    = 6 * vh;
   const t      = Math.max(0, Math.min(1, (sy - start) / (end - start)));
-  if (sy < start * 0.8 || sy > end + vh) {
+  const isVisible = spEl.classList.contains('visible');
+  const showThreshold  = isVisible ? start * 0.75 : start * 0.80;
+  const hideThreshold  = isVisible ? end + vh * 1.1 : end + vh;
+  if (sy < showThreshold || sy > hideThreshold) {
     spEl.classList.remove('visible');
   } else {
     spEl.classList.add('visible');
@@ -933,7 +937,7 @@ function drawEarth(p) {
   if (!prefersReducedMotion) {
   earthCtx.save();
   const bioCount = isMobile ? 30 : BIO_PARTICLES.length;
-  BIO_PARTICLES.slice(0, bioCount).forEach(bp => {
+  for (let bi = 0; bi < bioCount; bi++) { const bp = BIO_PARTICLES[bi];
     const px = bp.xBase * w;
     // Cycle y upward through ocean, wrap at top of ocean
     const rawY = 1 - ((bp.yFrac + elapsed * bp.speed) % 1);
@@ -948,7 +952,7 @@ function drawEarth(p) {
     earthCtx.arc(px, py, bp.size * 3.5, 0, Math.PI * 2);
     earthCtx.fillStyle = bg;
     earthCtx.fill();
-  });
+  }
   earthCtx.restore();
   } // end bio block
 
@@ -1152,10 +1156,11 @@ function spawnWaterRipple(x, y) {
   waterRipples.push({ x, y, r: 0, maxR: Math.min(earthCanvas.width, earthCanvas.height) * 0.12, life: 1 });
 }
 function drawWaterRipples(ctx, seaTop, h) {
-  waterRipples.forEach((rp, i) => {
+  for (let i = waterRipples.length - 1; i >= 0; i--) {
+    const rp = waterRipples[i];
     rp.r    += 2.2;
     rp.life -= 0.022;
-    if (rp.life <= 0 || rp.y < seaTop) { waterRipples.splice(i, 1); return; }
+    if (rp.life <= 0 || rp.y < seaTop) { waterRipples.splice(i, 1); continue; }
     const alpha = rp.life * 0.45;
     ctx.save();
     // Clip to ocean area only
@@ -1175,7 +1180,7 @@ function drawWaterRipples(ctx, seaTop, h) {
       ctx.stroke();
     }
     ctx.restore();
-  });
+  }
 }
 
 // ─── Hero star shine on click ──────────────────────────────────────────────
@@ -1278,7 +1283,7 @@ document.addEventListener('mousemove', e => {
 
   // Star name tooltip — check proximity to projected foreground stars
   if (earthProgress < 0.3) {
-    const tempVec = new THREE.Vector3();
+    const tempVec = _tempVec;
     let nearest = null, nearDist = 40;
     for (let i = 0; i < STAR3_COUNT; i++) {
       tempVec.set(star3Pos.getX(i), star3Pos.getY(i), star3Pos.getZ(i));
@@ -1291,7 +1296,9 @@ document.addEventListener('mousemove', e => {
     if (nearest !== null) {
       const { name, dist } = starName(nearest);
       starTooltip.textContent = `${name}  ·  ${dist} ly`;
-      starTooltip.style.left  = (e.clientX + 16) + 'px';
+      const ttW = starTooltip.offsetWidth || 140;
+      const ttL = Math.min(e.clientX + 16, window.innerWidth - ttW - 8);
+      starTooltip.style.left  = ttL + 'px';
       starTooltip.style.top   = (e.clientY - 24) + 'px';
       starTooltip.classList.add('visible');
       hoveredStar = nearest;
@@ -1591,10 +1598,11 @@ function animate() {
 
   // ── Hero star shines (on dedicated overlay canvas) ──
   shineCtx.clearRect(0, 0, shineCanvas.width, shineCanvas.height);
-  heroStarShines.forEach((sh, i) => {
+  for (let i = heroStarShines.length - 1; i >= 0; i--) {
+    const sh = heroStarShines[i];
     sh.age  += 1;
-    sh.life -= 0.004; // ~250 frames = ~4 seconds to fade out at 60fps
-    if (sh.life <= 0) { heroStarShines.splice(i, 1); return; }
+    sh.life -= 0.004;
+    if (sh.life <= 0) { heroStarShines.splice(i, 1); continue; }
     const fadeIn = Math.min(sh.age / 18, 1);
     const alpha = fadeIn * sh.life;
     const { x, y } = sh;
@@ -1626,7 +1634,7 @@ function animate() {
     shineCtx.closePath();
     shineCtx.fill();
     shineCtx.restore();
-  });
+  }
 
   // ── GitHub stats visibility ──
   if (earthProgress > 0.5) ghStats.classList.add('visible');
