@@ -126,68 +126,6 @@ function stepWarp() {
   }
 }
 
-// ─── Descent overlay (inverse-warp as you approach earth) ─────────────────
-const descentCanvas = document.createElement('canvas');
-descentCanvas.style.cssText = 'position:fixed;inset:0;z-index:5;pointer-events:none';
-document.body.appendChild(descentCanvas);
-const descentCtx = descentCanvas.getContext('2d');
-descentCanvas.width  = window.innerWidth;
-descentCanvas.height = window.innerHeight;
-
-// Same star pool as warp but streaks converge inward
-const DESCENT_STARS = Array.from({ length: 180 }, () => ({
-  angle:  Math.random() * Math.PI * 2,
-  speed:  0.35 + Math.random() * 0.65,
-  len:    0.08 + Math.random() * 0.14,
-  bright: 0.45 + Math.random() * 0.55,
-}));
-
-function stepDescent(ep) {
-  const w = descentCanvas.width, h = descentCanvas.height;
-  // Only active in mid-transition
-  const t = Math.max(0, Math.min(1, (ep - 0.05) / 0.85));
-  if (t <= 0) { descentCtx.clearRect(0, 0, w, h); return; }
-
-  // Fade-in then fade-out: peak alpha at t=0.45
-  const envelope = t < 0.45 ? t / 0.45 : 1 - (t - 0.45) / 0.55;
-  const ease     = t * t * (3 - 2 * t); // smoothstep
-
-  descentCtx.clearRect(0, 0, w, h);
-
-  // Atmospheric glow rising from the bottom
-  const atmH = h * 0.40 * ease;
-  const atm = descentCtx.createLinearGradient(0, h - atmH, 0, h);
-  atm.addColorStop(0, 'rgba(0,0,0,0)');
-  atm.addColorStop(0.5, `rgba(20,80,160,${0.18 * envelope * ease})`);
-  atm.addColorStop(1,   `rgba(30,120,200,${0.35 * envelope * ease})`);
-  descentCtx.fillStyle = atm;
-  descentCtx.fillRect(0, h - atmH, w, atmH);
-
-  // Inward-converging star streaks (inverse of outward warp)
-  // Stars start far from center and rush inward
-  const cx = w / 2, cy = h / 2;
-  DESCENT_STARS.forEach(s => {
-    const maxDist = Math.max(w, h) * 0.65;
-    const dist = maxDist * (1 - ease * s.speed * 0.85);
-    const x1 = cx + Math.cos(s.angle) * dist;
-    const y1 = cy + Math.sin(s.angle) * dist;
-    const tailLen = dist * s.len * (0.5 + ease * 1.8);
-    // Tail points outward (star moving inward, tail trails behind = outward)
-    const x0 = x1 + Math.cos(s.angle) * tailLen;
-    const y0 = y1 + Math.sin(s.angle) * tailLen;
-    const alpha = s.bright * Math.min(1, ease * 2.5) * envelope;
-    const grad = descentCtx.createLinearGradient(x0, y0, x1, y1);
-    grad.addColorStop(0, 'rgba(160,210,255,0)');
-    grad.addColorStop(1, `rgba(200,235,255,${alpha})`);
-    descentCtx.beginPath();
-    descentCtx.moveTo(x0, y0);
-    descentCtx.lineTo(x1, y1);
-    descentCtx.strokeStyle = grad;
-    descentCtx.lineWidth = 0.6 + ease * 1.4;
-    descentCtx.stroke();
-  });
-}
-
 // ─── Cursor trail ─────────────────────────────────────────────────────────
 const trailCanvas = document.getElementById('trail-canvas');
 const trailCtx    = trailCanvas.getContext('2d');
@@ -1558,19 +1496,13 @@ function animate() {
 
   if (earthProgress > 0.005) {
     drawEarth(earthProgress);
-    // Descend: earth rises up from below as we approach
-    const slideY = (1 - earthProgress) * 80;
+    // Descend effect: slide earth canvas down from above as it enters
+    const slideY = (1 - earthProgress) * -60;
     earthCanvas.style.transform = `translateY(${slideY}px)`;
   } else {
     earthCtx.clearRect(0, 0, earthCanvas.width, earthCanvas.height);
-    earthCanvas.style.transform = 'translateY(80px)';
+    earthCanvas.style.transform = 'translateY(-60px)';
   }
-
-  // Descent overlay — inward streaks + atmospheric glow during transition
-  stepDescent(earthProgress);
-
-  // Camera zooms in toward earth as earthProgress increases
-  camera.position.z = 120 - earthProgress * 55;
 
   stepWarp();
 
@@ -1750,9 +1682,7 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   resizeConstCanvas();
   resizeEarthCanvas();
-  trailCanvas.width    = window.innerWidth;
-  trailCanvas.height   = window.innerHeight;
-  descentCanvas.width  = window.innerWidth;
-  descentCanvas.height = window.innerHeight;
+  trailCanvas.width  = window.innerWidth;
+  trailCanvas.height = window.innerHeight;
   updateTargets();
 });
