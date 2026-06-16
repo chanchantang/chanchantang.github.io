@@ -50,12 +50,27 @@ btnAudio.addEventListener('click', () => {
 const themes = ['night', 'dawn', 'mars'];
 let themeIdx = 0;
 const themeOverlay = document.getElementById('theme-overlay');
-const bgColors = { night: 0x000812, dawn: 0x080410, mars: 0x0a0200 };
-document.getElementById('btn-theme').addEventListener('click', () => {
+const bgColors     = { night: 0x000812, dawn: 0x080410, mars: 0x0a0200 };
+const themeLabels  = { night: 'Night', dawn: 'Dawn', mars: 'Mars' };
+const btnTheme     = document.getElementById('btn-theme');
+
+// Floating label that briefly appears on theme change
+const themeLabel = document.createElement('div');
+themeLabel.id = 'theme-label';
+document.body.appendChild(themeLabel);
+let themeLabelTimer = null;
+
+btnTheme.addEventListener('click', () => {
   themeIdx = (themeIdx + 1) % themes.length;
   const t = themes[themeIdx];
   themeOverlay.className = t === 'night' ? '' : t;
   renderer.setClearColor(bgColors[t], 1);
+
+  // Show label briefly
+  themeLabel.textContent = themeLabels[t];
+  themeLabel.classList.add('visible');
+  clearTimeout(themeLabelTimer);
+  themeLabelTimer = setTimeout(() => themeLabel.classList.remove('visible'), 1400);
 });
 
 // ─── Warp speed ───────────────────────────────────────────────────────────
@@ -412,6 +427,7 @@ updateScrollProgress();
 
 // Smooth per-constellation hover fade (0→1)
 const hoveredProgress = {};
+const clickHintSeen  = {}; // tracks whether the user has opened each panel
 KEYS.forEach(k => { hoveredProgress[k] = 0; });
 
 // ─── Draw loop (constellations on 2D canvas) ──────────────────────────────
@@ -556,15 +572,53 @@ function drawConstellations() {
       }
     });
 
+    // ── Idle pulse ring — signals the constellation is interactive ──
+    if (!isHov && p > 0.70) {
+      const pulseA = ((p - 0.70) / 0.30) * (0.28 + 0.10 * Math.sin(elapsed * 0.018));
+      const ctr = constCenter(key);
+      const sc  = constScale();
+      ctx.save();
+      ctx.strokeStyle = `rgba(${c.rgb},${pulseA * 0.45})`;
+      ctx.lineWidth   = 0.8;
+      ctx.beginPath();
+      ctx.arc(ctr.x, ctr.y, sc * 0.38 + 6 * Math.sin(elapsed * 0.022), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ── "Click / Tap to explore" hint ──
+    // Desktop: first visit only. Mobile: always shown below constellation name.
+    const showHint = isMobile ? (p > 0.70) : (!isHov && p > 0.80 && !clickHintSeen[key]);
+    if (showHint) {
+      const hintA = isMobile
+        ? Math.min(1, (p - 0.70) / 0.20)
+        : Math.min(1, (p - 0.80) / 0.20);
+      const ctr  = constCenter(key);
+      const sc   = constScale();
+      const label = isMobile ? 'TAP TO EXPLORE' : 'CLICK TO EXPLORE';
+      ctx.save();
+      ctx.font      = '300 10px "Space Mono", monospace';
+      ctx.fillStyle = `rgba(${c.rgb},${hintA * 0.85})`;
+      ctx.textAlign = 'center';
+      ctx.letterSpacing = '2px';
+      // Subtle glow behind text
+      ctx.shadowColor = `rgba(${c.rgb},0.6)`;
+      ctx.shadowBlur  = 8;
+      ctx.fillText(label, ctr.x, ctr.y + sc * 0.52 + 44);
+      ctx.restore();
+    }
+
     // ── Constellation name label ──
-    if (p > 0.55) {
-      const alpha = (p - 0.55) / 0.45;
+    if (p > 0.50) {
+      const alpha = Math.min(1, (p - 0.50) / 0.30);
       const ctr   = constCenter(key);
       ctx.save();
       ctx.font      = '300 11px "Space Mono", monospace';
-      ctx.fillStyle = `rgba(${c.rgb},${alpha * 0.72})`;
+      ctx.fillStyle = `rgba(${c.rgb},${alpha * 0.90})`;
       ctx.textAlign = 'center';
       ctx.letterSpacing = '3px';
+      ctx.shadowColor = `rgba(${c.rgb},0.5)`;
+      ctx.shadowBlur  = 6;
       ctx.fillText(c.name.toUpperCase(), ctr.x, ctr.y + constScale() * 0.52 + 24);
       ctx.restore();
     }
@@ -1119,6 +1173,7 @@ let panelZoomKey = null;
 function openPanel(key, clickX, clickY) {
   if (panelZoomKey) return;
   panelZoomKey = key;
+  clickHintSeen[key] = true;
 
   const ctr = constCenter(key);
   const ox = clickX !== undefined ? clickX : ctr.x;
@@ -1305,7 +1360,7 @@ document.addEventListener('mousemove', e => {
     if (earthProgress < 0.3) {
       const nx = (e.clientX / window.innerWidth  - 0.5);
       const ny = (e.clientY / window.innerHeight - 0.5);
-      sceneWrap.style.transform = `perspective(1400px) rotateX(${ny * 2}deg) rotateY(${nx * -2}deg)`;
+      sceneWrap.style.transform = `perspective(1400px) rotateX(${ny * 2}deg) rotateY(${nx * -2}deg) scale(1.06)`;
     } else {
       sceneWrap.style.transform = '';
     }
@@ -1449,20 +1504,23 @@ function animate() {
   const spaceT   = Math.max(0, sy - vh);          // 0 at first space section
   const swirl    = spaceT * 0.000115;             // grows as you scroll space
 
-  // Vertical parallax — only active during hero ascent
-  stars1.position.y   = heroSy * -0.04;
-  stars2.position.y   = heroSy * -0.07;
-  stars3.position.y   = heroSy * -0.12;
-  milkyWay.position.y = heroSy * -0.02;
+  // Vertical parallax — ascent on hero scroll, descent on earth approach (mirrored)
+  const ep = earthProgress;
+  stars1.position.y   = heroSy * -0.04 + ep * vh * 0.04;
+  stars2.position.y   = heroSy * -0.07 + ep * vh * 0.07;
+  stars3.position.y   = heroSy * -0.12 + ep * vh * 0.12;
+  milkyWay.position.y = heroSy * -0.02 + ep * vh * 0.02;
 
-  // Orbital rotation in space sections — each layer sweeps a different axis
-  stars1.rotation.y = animTime * 0.018 + swirl * 1.6;
-  stars2.rotation.y = animTime * 0.012 + swirl * 1.1;
-  stars2.rotation.x = swirl * 0.55;
-  stars3.rotation.z = animTime * 0.007 + swirl * 0.75;
-  milkyWay.rotation.z = Math.PI / 7 + swirl * 0.35;
+  // Orbital rotation — slows as you descend back toward earth
+  const rotScale = 1 - ep * 0.85;
+  stars1.rotation.y = (animTime * 0.018 + swirl * 1.6)  * rotScale;
+  stars2.rotation.y = (animTime * 0.012 + swirl * 1.1)  * rotScale;
+  stars2.rotation.x = swirl * 0.55 * rotScale;
+  stars3.rotation.z = (animTime * 0.007 + swirl * 0.75) * rotScale;
+  milkyWay.rotation.z = (Math.PI / 7 + swirl * 0.35)   * rotScale;
 
   // Camera: mouse parallax + vertical rise during hero + lateral banking in space
+  // Descent mirrors the ascent: camera drops back down as earthProgress increases
   camOffsetX += ((targetMouseX / window.innerWidth  - 0.5) * 28 - camOffsetX) * 0.04;
   camOffsetY += ((targetMouseY / window.innerHeight - 0.5) * 18 - camOffsetY) * 0.04;
   const bankX = spaceT > 0 ? Math.sin(swirl * 3.8) * 42 : 0;
@@ -1472,7 +1530,7 @@ function animate() {
   bgDriftY += (bgDriftTargetY - bgDriftY) * 0.06;
 
   camera.position.x =  camOffsetX + bankX + bgDriftX;
-  camera.position.y = -camOffsetY + heroSy * 0.07 + bankY - bgDriftY;
+  camera.position.y = -camOffsetY + heroSy * 0.07 + bankY - bgDriftY - ep * vh * 0.07;
 
 
   renderer.render(scene, camera);
@@ -1496,12 +1554,12 @@ function animate() {
 
   if (earthProgress > 0.005) {
     drawEarth(earthProgress);
-    // Descend effect: slide earth canvas down from above as it enters
-    const slideY = (1 - earthProgress) * -60;
+    // Mirror of hero ascent: earth rises from below as you descend toward it
+    const slideY = (1 - earthProgress) * 60;
     earthCanvas.style.transform = `translateY(${slideY}px)`;
   } else {
     earthCtx.clearRect(0, 0, earthCanvas.width, earthCanvas.height);
-    earthCanvas.style.transform = 'translateY(-60px)';
+    earthCanvas.style.transform = 'translateY(60px)';
   }
 
   stepWarp();
@@ -1673,6 +1731,18 @@ function animate() {
 }
 
 animate();
+
+// ─── Loading screen ───────────────────────────────────────────────────────
+const loadingScreen = document.getElementById('loading-screen');
+if (loadingScreen) {
+  // Give Three.js one rendered frame + fonts a moment, then fade out
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      loadingScreen.classList.add('hidden');
+      setTimeout(() => loadingScreen.remove(), 750);
+    });
+  });
+}
 
 // ─── Resize ───────────────────────────────────────────────────────────────
 
