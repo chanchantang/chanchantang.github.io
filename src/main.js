@@ -7,8 +7,15 @@ import { createHero } from './hero.js';
 import { createAudio } from './audio.js';
 
 // ─── Device / capability flags ────────────────────────────────────────────
-const isMobile          = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768;
+const isMobile             = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ─── Layout / animation constants ────────────────────────────────────────
+const SEA_TOP_FRAC  = 0.60;   // ocean starts at 60% of canvas height
+const EARTH_SCALE_F = 0.14;   // constellation size factor on earth page
+const MOON_X_FRAC   = 0.72;   // moon x as fraction of canvas width
+const MOON_R_FACTOR = 0.110;  // moon radius as fraction of min(w,h)
+const TRAIL_AGE_MAX = 55 * 2.8; // frames until a trail point fully expires
 
 // ─── Three.js ───────────────────────────────────────────────────────────────
 
@@ -287,7 +294,8 @@ function starPoints(key) {
 // targetProgress[key] is 1.0 when that section is centred in viewport, 0 otherwise.
 // Only one constellation is near 1.0 at any scroll position.
 
-const KEYS = Object.keys(CONSTELLATIONS);
+const KEYS      = Object.keys(CONSTELLATIONS);
+const KEY_INDEX = Object.fromEntries(KEYS.map((k, i) => [k, i])); // avoids indexOf in hot loop
 KEYS.forEach(k => { earthHoverAmt[k] = 0; });
 
 // ─── 3D depth per constellation star ─────────────────────────────────────
@@ -425,7 +433,32 @@ KEYS.forEach(k => {
 function shuffleDrawOrder(key) {
   const n = CONSTELLATIONS[key].lines.length;
   lineDrawOrder[key] = [...Array(n).keys()].sort(() => Math.random() - 0.5);
-  lineDrawSpeed[key] = 0.0025 + Math.random() * 0.0022; // 0.0025–0.0047 per frame
+  lineDrawSpeed[key] = 0.0025 + Math.random() * 0.0022;
+}
+
+// Shared animated line-draw used by both the constellation canvas and the earth page
+function drawAnimatedLines(renderCtx, c, pts, key) {
+  const order = lineDrawOrder[key];
+  if (!order.length) return;
+  const front = lineDrawAnim[key] * (order.length + 1.2);
+  order.forEach((lineIdx, i) => {
+    const [a, b] = c.lines[lineIdx];
+    const seg = Math.min(1, Math.max(0, front - i));
+    if (seg <= 0) return;
+    const ageBehind = front - i - 1;
+    const isHead    = ageBehind < 0;
+    renderCtx.save();
+    renderCtx.strokeStyle = `rgba(${c.rgb},${(isHead ? 1 : Math.max(0.38, 1 - ageBehind * 0.14)) * 0.90})`;
+    renderCtx.lineWidth   = isHead ? 2.4 : 1.1;
+    renderCtx.shadowColor = c.color;
+    renderCtx.shadowBlur  = isHead ? 24 : 7;
+    renderCtx.beginPath();
+    renderCtx.moveTo(pts[a].x, pts[a].y);
+    renderCtx.lineTo(pts[a].x + (pts[b].x - pts[a].x) * seg,
+                     pts[a].y + (pts[b].y - pts[a].y) * seg);
+    renderCtx.stroke();
+    renderCtx.restore();
+  });
 }
 
 function drawConstellations() {
@@ -441,31 +474,7 @@ function drawConstellations() {
 
     // ── Lines ──
     if (isHov) {
-      // Shuffled draw-on animation — each cycle draws lines in a new random order
-      const order = lineDrawOrder[key];
-      if (order.length > 0) {
-        const front = lineDrawAnim[key] * (order.length + 1.2);
-        order.forEach((lineIdx, i) => {
-          const [a, b] = c.lines[lineIdx];
-          const seg = Math.min(1, Math.max(0, front - i));
-          if (seg <= 0) return;
-          const ageBehind = front - i - 1;
-          const glow    = ageBehind < 0 ? 1 : Math.max(0.38, 1 - ageBehind * 0.14);
-          const lw      = ageBehind < 0 ? 2.4 : 1.1;
-          const blur    = ageBehind < 0 ? 24  : 7;
-          ctx.save();
-          ctx.strokeStyle = `rgba(${c.rgb},${glow * 0.90})`;
-          ctx.lineWidth   = lw;
-          ctx.shadowColor = c.color;
-          ctx.shadowBlur  = blur;
-          ctx.beginPath();
-          ctx.moveTo(pts[a].x, pts[a].y);
-          ctx.lineTo(pts[a].x + (pts[b].x - pts[a].x) * seg,
-                     pts[a].y + (pts[b].y - pts[a].y) * seg);
-          ctx.stroke();
-          ctx.restore();
-        });
-      }
+      drawAnimatedLines(ctx, c, pts, key);
     } else {
       // Always-visible faint lines
       const lineAlpha = Math.min(1, Math.max(0, (p - 0.22) / 0.28)) * 0.10;
@@ -565,6 +574,7 @@ function drawConstellations() {
 }
 
 // ─── Earth scene ─────────────────────────────────────────────────────────
+const SECTION_NAMES = { orion: 'Projects', taurus: 'About Me', lyra: 'Skills', scorpius: 'Experience', aquarius: 'Contact' };
 
 // Per-constellation tilt angles for the earth view (radians)
 const EARTH_TILTS = {
@@ -601,12 +611,99 @@ function seededRand(seed) {
   };
 }
 
+function drawAurora(ctx, p, w, seaTop) {
+  if (prefersReducedMotion) return;
+  ctx.save();
+  [
+    { rgb: '30,200,160', phase: 0   },
+    { rgb: '50,100,220', phase: 2.2 },
+    { rgb: '130,50,200', phase: 4.5 },
+  ].forEach((a, ai) => {
+    const t    = elapsed * 0.0015 + a.phase;
+    const base = seaTop * (0.58 + ai * 0.09);
+    const band = seaTop * 0.18;
+    ctx.beginPath();
+    ctx.moveTo(0, seaTop);
+    for (let x = 0; x <= w; x += 6) {
+      const xf = x / w;
+      const y  = base
+        - Math.sin(xf * Math.PI * 2.8 + t)       * band * 0.55
+        - Math.sin(xf * Math.PI * 5.1 + t * 1.3) * band * 0.22
+        - Math.sin(xf * Math.PI * 1.4 + t * 0.6) * band * 0.30;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(w, seaTop);
+    ctx.closePath();
+    const ag = ctx.createLinearGradient(0, base - band, 0, seaTop);
+    ag.addColorStop(0, `rgba(${a.rgb},0.10)`);
+    ag.addColorStop(1, `rgba(${a.rgb},0)`);
+    ctx.fillStyle   = ag;
+    ctx.globalAlpha = p * 0.9;
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+// Returns { moonX, moonR } so callers can position the water reflection
+function drawMoon(ctx, p, w, h) {
+  const moonX = w * MOON_X_FRAC;
+  const moonY = h * SEA_TOP_FRAC;
+  const moonR = Math.min(w, h) * MOON_R_FACTOR;
+  ctx.save();
+  const corona = ctx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 7);
+  corona.addColorStop(0,   `rgba(208,224,255,${0.18 * p})`);
+  corona.addColorStop(0.3, `rgba(182,210,255,${0.06 * p})`);
+  corona.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.arc(moonX, moonY, moonR * 7, Math.PI, 0);
+  ctx.closePath();
+  ctx.fillStyle = corona;
+  ctx.fill();
+  ctx.shadowColor = `rgba(200,220,255,${0.55 * p})`;
+  ctx.shadowBlur  = 22;
+  const disc = ctx.createRadialGradient(moonX - moonR * 0.22, moonY - moonR * 0.28, 0, moonX, moonY, moonR);
+  disc.addColorStop(0,    `rgba(252,255,255,${p})`);
+  disc.addColorStop(0.50, `rgba(228,240,255,${0.97 * p})`);
+  disc.addColorStop(0.82, `rgba(198,220,255,${0.85 * p})`);
+  disc.addColorStop(1,    'rgba(158,192,255,0)');
+  ctx.beginPath();
+  ctx.arc(moonX, moonY, moonR, Math.PI, 0);
+  ctx.closePath();
+  ctx.fillStyle = disc;
+  ctx.fill();
+  ctx.restore();
+  return { moonX, moonR };
+}
+
+function drawBioParticles(ctx, p, w, h, seaTop) {
+  if (prefersReducedMotion) return;
+  ctx.save();
+  const count = isMobile ? 30 : BIO_PARTICLES.length;
+  for (let i = 0; i < count; i++) {
+    const bp      = BIO_PARTICLES[i];
+    const px      = bp.xBase * w;
+    const rawY    = 1 - ((bp.yFrac + elapsed * bp.speed) % 1);
+    const py      = seaTop + rawY * (h - seaTop);
+    const twinkle = 0.5 + 0.5 * Math.sin(elapsed * 0.04 + bp.phase);
+    const alpha   = bp.bright * twinkle * p * Math.max(0, 1 - rawY * 1.4);
+    if (alpha < 0.01) continue;
+    const bg = ctx.createRadialGradient(px, py, 0, px, py, bp.size * 3.5);
+    bg.addColorStop(0, `rgba(40,220,180,${alpha})`);
+    bg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(px, py, bp.size * 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = bg;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawEarth(p) {
   const w = earthCanvas.width;
   const h = earthCanvas.height;
   earthCtx.clearRect(0, 0, w, h);
 
-  const seaTop = h * 0.60;
+  const seaTop = h * SEA_TOP_FRAC;
   earthCtx.globalAlpha = p;
 
   // ── Sky ──
@@ -619,39 +716,8 @@ function drawEarth(p) {
   earthCtx.fillStyle = sky;
   earthCtx.fillRect(0, 0, w, seaTop);
 
-  // ── Aurora borealis — soft wavy curtains in the lower sky ──
-  if (!prefersReducedMotion) {
-  earthCtx.save();
-  const AURORA = [
-    { rgb: '30,200,160', phase: 0 },
-    { rgb: '50,100,220', phase: 2.2 },
-    { rgb: '130,50,200', phase: 4.5 },
-  ];
-  AURORA.forEach((a, ai) => {
-    const t    = elapsed * 0.0015 + a.phase;
-    const base = seaTop * (0.58 + ai * 0.09);
-    const band = seaTop * 0.18;
-    earthCtx.beginPath();
-    earthCtx.moveTo(0, seaTop);
-    for (let x = 0; x <= w; x += 6) {
-      const xf = x / w;
-      const y  = base
-        - Math.sin(xf * Math.PI * 2.8 + t)        * band * 0.55
-        - Math.sin(xf * Math.PI * 5.1 + t * 1.3)  * band * 0.22
-        - Math.sin(xf * Math.PI * 1.4 + t * 0.6)  * band * 0.30;
-      earthCtx.lineTo(x, y);
-    }
-    earthCtx.lineTo(w, seaTop);
-    earthCtx.closePath();
-    const ag = earthCtx.createLinearGradient(0, base - band, 0, seaTop);
-    ag.addColorStop(0, `rgba(${a.rgb},0.10)`);
-    ag.addColorStop(1, `rgba(${a.rgb},0)`);
-    earthCtx.fillStyle = ag;
-    earthCtx.globalAlpha = p * 0.9;
-    earthCtx.fill();
-  });
-  earthCtx.restore();
-  } // end aurora block
+  // ── Aurora borealis ──
+  drawAurora(earthCtx, p, w, seaTop);
 
   // ── Background stars ──
   earthCtx.globalAlpha = p;
@@ -704,34 +770,7 @@ function drawEarth(p) {
   earthCtx.restore();
 
   // ── Moon: semi-circle sitting on the waterline ──
-  const moonX = w * 0.72;
-  const moonY = seaTop; // centre at waterline so top half shows above water
-  const moonR = Math.min(w, h) * 0.110;
-  earthCtx.save();
-  // Corona glow (clip to upper half so it doesn't bleed into water)
-  const corona = earthCtx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 7);
-  corona.addColorStop(0,   `rgba(208,224,255,${0.18 * p})`);
-  corona.addColorStop(0.3, `rgba(182,210,255,${0.06 * p})`);
-  corona.addColorStop(1,   'rgba(0,0,0,0)');
-  earthCtx.beginPath();
-  earthCtx.arc(moonX, moonY, moonR * 7, Math.PI, 0); // upper semicircle
-  earthCtx.closePath();
-  earthCtx.fillStyle = corona;
-  earthCtx.fill();
-  // Semi-disc (upper half only)
-  earthCtx.shadowColor = `rgba(200,220,255,${0.55 * p})`;
-  earthCtx.shadowBlur  = 22;
-  const moonDisc = earthCtx.createRadialGradient(moonX - moonR * 0.22, moonY - moonR * 0.28, 0, moonX, moonY, moonR);
-  moonDisc.addColorStop(0,    `rgba(252,255,255,${p})`);
-  moonDisc.addColorStop(0.50, `rgba(228,240,255,${0.97 * p})`);
-  moonDisc.addColorStop(0.82, `rgba(198,220,255,${0.85 * p})`);
-  moonDisc.addColorStop(1,    'rgba(158,192,255,0)');
-  earthCtx.beginPath();
-  earthCtx.arc(moonX, moonY, moonR, Math.PI, 0); // upper semicircle
-  earthCtx.closePath();
-  earthCtx.fillStyle = moonDisc;
-  earthCtx.fill();
-  earthCtx.restore();
+  const { moonX, moonR } = drawMoon(earthCtx, p, w, h);
 
   // Horizon glow
   const horiGlow = earthCtx.createLinearGradient(0, seaTop * 0.82, 0, seaTop);
@@ -742,8 +781,7 @@ function drawEarth(p) {
   earthCtx.fillRect(0, seaTop * 0.82, w, seaTop * 0.18);
 
   // ── Constellations in the sky ──
-  const earthScale = Math.min(w, h) * 0.14;
-  const SECTION_NAMES = { orion:'Projects', taurus:'About Me', lyra:'Skills', scorpius:'Experience', aquarius:'Contact' };
+  const earthScale = Math.min(w, h) * EARTH_SCALE_F;
   KEYS.forEach(key => {
     const c      = CONSTELLATIONS[key];
     const anchor = EARTH_ANCHORS[key];
@@ -762,29 +800,7 @@ function drawEarth(p) {
 
     earthCtx.shadowColor = c.color;
     if (isMobile && lineDrawOrder[key] && lineDrawOrder[key].length > 0) {
-      // Animated sequential line draw (same as hover effect on desktop)
-      const order = lineDrawOrder[key];
-      const front = lineDrawAnim[key] * (order.length + 1.2);
-      order.forEach((lineIdx, i) => {
-        const [a, b] = c.lines[lineIdx];
-        const seg = Math.min(1, Math.max(0, front - i));
-        if (seg <= 0) return;
-        const ageBehind = front - i - 1;
-        const glow  = ageBehind < 0 ? 1 : Math.max(0.38, 1 - ageBehind * 0.14);
-        const lw    = ageBehind < 0 ? 2.4 : 1.1;
-        const blur  = ageBehind < 0 ? 24  : 7;
-        const [sx, sy] = [epts[a].x, epts[a].y];
-        const [ex, ey] = [epts[b].x, epts[b].y];
-        earthCtx.save();
-        earthCtx.strokeStyle = `rgba(${c.rgb},${glow * 0.90})`;
-        earthCtx.lineWidth   = lw;
-        earthCtx.shadowBlur  = blur;
-        earthCtx.beginPath();
-        earthCtx.moveTo(sx, sy);
-        earthCtx.lineTo(sx + (ex - sx) * seg, sy + (ey - sy) * seg);
-        earthCtx.stroke();
-        earthCtx.restore();
-      });
+      drawAnimatedLines(earthCtx, c, epts, key);
     } else {
       earthCtx.strokeStyle = `rgba(${c.rgb},${0.55 + hov * 0.35})`;
       earthCtx.lineWidth   = 0.9 + hov * 0.6;
@@ -934,27 +950,7 @@ function drawEarth(p) {
   earthCtx.restore();
 
   // ── Bioluminescence — slow-rising glowing particles ──
-  if (!prefersReducedMotion) {
-  earthCtx.save();
-  const bioCount = isMobile ? 30 : BIO_PARTICLES.length;
-  for (let bi = 0; bi < bioCount; bi++) { const bp = BIO_PARTICLES[bi];
-    const px = bp.xBase * w;
-    // Cycle y upward through ocean, wrap at top of ocean
-    const rawY = 1 - ((bp.yFrac + elapsed * bp.speed) % 1);
-    const py   = seaTop + rawY * (h - seaTop);
-    const twinkle = 0.5 + 0.5 * Math.sin(elapsed * 0.04 + bp.phase);
-    const alpha = bp.bright * twinkle * p * Math.max(0, 1 - rawY * 1.4); // fade near seaTop
-    if (alpha < 0.01) return;
-    const bg = earthCtx.createRadialGradient(px, py, 0, px, py, bp.size * 3.5);
-    bg.addColorStop(0, `rgba(40,220,180,${alpha})`);
-    bg.addColorStop(1, 'rgba(0,0,0,0)');
-    earthCtx.beginPath();
-    earthCtx.arc(px, py, bp.size * 3.5, 0, Math.PI * 2);
-    earthCtx.fillStyle = bg;
-    earthCtx.fill();
-  }
-  earthCtx.restore();
-  } // end bio block
+  drawBioParticles(earthCtx, p, w, h, seaTop);
 
   // ── Horizon shimmer ──
   const shimmer = earthCtx.createLinearGradient(0, seaTop - 1, 0, seaTop + 6);
@@ -1253,10 +1249,8 @@ document.addEventListener('click', e => {
   const w = earthCanvas.width, h = earthCanvas.height;
   const rect = earthCanvas.getBoundingClientRect();
   const canvasY = e.clientY - rect.top;
-  const seaTopFrac = 0.60;
-  const seaTopPx = h * seaTopFrac; // canvas coords
-  const seaTopScreen = rect.top + rect.height * seaTopFrac; // screen coords
-  const earthScale = Math.min(w, h) * 0.14;
+  const seaTopScreen = rect.top + rect.height * SEA_TOP_FRAC;
+  const earthScale = Math.min(w, h) * EARTH_SCALE_F;
   // Water ripple — only when clicking at or below the waterline
   if (e.clientY >= seaTopScreen) {
     spawnWaterRipple(e.clientX, canvasY);
@@ -1271,7 +1265,7 @@ document.addEventListener('click', e => {
     if (d < closestDist) { closestDist = d; closest = key; }
   });
   if (closest && closestDist < earthScale * 1.2) {
-    const idx = KEYS.indexOf(closest);
+    const idx = KEY_INDEX[closest];
     startWarp(() => {
       window.scrollTo({ top: (idx + 1) * window.innerHeight, behavior: 'smooth' });
     });
@@ -1549,7 +1543,7 @@ function animate() {
       // Idle drift — gentle constant slow rotation even without hover
       if (!isDragging || dragKey !== key) {
         constRotTarget[key].y += 0.00045;
-        constRotTarget[key].x  = Math.sin(elapsed * 0.003 + KEYS.indexOf(key) * 1.2) * 0.06;
+        constRotTarget[key].x  = Math.sin(elapsed * 0.003 + KEY_INDEX[key] * 1.2) * 0.06;
       }
       // Inertia: bleed velocity into target, decay
       constRotVel[key].x *= 0.90;
